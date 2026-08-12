@@ -443,6 +443,9 @@ function closeOverlay() {
         // Move closer to window (room spans z=0..-5.2, window at z~-5.1)
         finn.position.z += -4.0;
 
+        // Store base Y for walking animation (floor level)
+        finnBaseY = finn.position.y;
+
         // Rotate to face the entrance (toward +z / door)
         finn.rotation.y = 0;
 
@@ -516,6 +519,7 @@ function closeOverlay() {
         });
 
         scene.add(finn);
+        finnObject = finn;
 
         // ---- Text label above Finn ----
         var labelCanvas = document.createElement('canvas');
@@ -558,7 +562,27 @@ function closeOverlay() {
             'тссс...',
             'снова тут?...',
             'ну и что...',
-            'могу я побыть один?...'
+            'могу я побыть один?...',
+            'покупай дешевле...',
+            'продавай дороже...',
+            'рынок упал опять...',
+            'надо было покупать...',
+            'продаю, продаю...',
+            'рынок спит...',
+            'купил бы, да денег нет...',
+            'продать бы по高位...',
+            'рынок волатильный...',
+            'покупай на просадках...',
+            'продавай на росте...',
+            'рынок перегрет...',
+            'купил на хаях опять...',
+            'продаю в убыток...',
+            'бычий рынок... может...',
+            'медвежий рынок... точно...',
+            'покупай и держи...',
+            'продавай и беги...',
+            'рынок непредсказуем...',
+            'купил бы биток...'
         ];
 
         var mumbleCanvas = document.createElement('canvas');
@@ -602,6 +626,13 @@ function closeOverlay() {
 
         // Start first mumble after 3 seconds
         mumbleTimer = setTimeout(showNextMumble, 3000);
+
+        // Store label/mumble references for position sync during walk
+        finnLabel = labelSprite;
+        mumbleSpriteRef = mumbleSprite;
+
+        // Schedule first walk
+        scheduleNextWalk();
     }, undefined, function (err) {
         console.error('Finn load error:', err);
     });
@@ -611,6 +642,48 @@ function closeOverlay() {
     var mumbleMat = null;
     var mumbleOpacity = 0;
     var mumbleTargetOpacity = 0;
+
+    // ---- Finn walking animation ----
+    var finnObject = null;
+    var finnLabel = null;
+    var mumbleSpriteRef = null;
+    var finnBaseY = 0;
+
+    // Room interior bounds (with margin from walls)
+    var ROOM_X_MIN = -1.2, ROOM_X_MAX = 1.2;
+    var ROOM_Z_MIN = -4.6, ROOM_Z_MAX = -0.5;
+
+    // Waypoints inside room — Finn walks between these
+    var finnWaypoints = [];
+    finnWaypoints.push({ x: 0, z: -4.0 });
+    finnWaypoints.push({ x: 0.8, z: -2.5 });
+    finnWaypoints.push({ x: -0.6, z: -1.5 });
+    finnWaypoints.push({ x: 0.5, z: -3.5 });
+    finnWaypoints.push({ x: -0.9, z: -4.2 });
+    finnWaypoints.push({ x: 0, z: -2.0 });
+    finnWaypoints.push({ x: 0.9, z: -1.0 });
+    finnWaypoints.push({ x: -0.4, z: -3.0 });
+
+    var finnCurrentWaypoint = 0;
+    var finnWalkSpeed = 0.04;
+    var finnWalkPhase = 0;
+    var finnWalking = false;
+    var finnIdleTimer = null;
+    var finnTargetX = 0, finnTargetZ = -4.0;
+    var finnCurrentRotation = 0;
+
+    function startFinnWalk() {
+        finnCurrentWaypoint = (finnCurrentWaypoint + 1) % finnWaypoints.length;
+        var wp = finnWaypoints[finnCurrentWaypoint];
+        finnTargetX = wp.x;
+        finnTargetZ = wp.z;
+        finnWalking = true;
+    }
+
+    function scheduleNextWalk() {
+        var delay = 4000 + Math.random() * 8000; // 4-12 sec idle
+        finnIdleTimer = setTimeout(startFinnWalk, delay);
+    }
 
     // ---- First-Person Controls ----
     var moveState = { forward: false, backward: false, left: false, right: false, up: false, down: false };
@@ -851,12 +924,64 @@ function closeOverlay() {
     function animate() {
         requestAnimationFrame(animate);
         updateCamera();
+
         // Animate mumble sprite fade
         if (mumbleOpacity !== mumbleTargetOpacity) {
             mumbleOpacity += (mumbleTargetOpacity - mumbleOpacity) * 0.08;
             if (Math.abs(mumbleOpacity - mumbleTargetOpacity) < 0.01) mumbleOpacity = mumbleTargetOpacity;
             mumbleMat.opacity = mumbleOpacity;
         }
+
+        // Finn walking animation
+        if (finnObject) {
+            if (finnWalking) {
+                var dx = finnTargetX - finnObject.position.x;
+                var dz = finnTargetZ - finnObject.position.z;
+                var dist = Math.sqrt(dx * dx + dz * dz);
+
+                if (dist < 0.05) {
+                    // Reached waypoint — stop and idle
+                    finnWalking = false;
+                    finnObject.rotation.z = 0; // straighten up
+                    scheduleNextWalk();
+                } else {
+                    // Move toward target
+                    var stepX = (dx / dist) * finnWalkSpeed;
+                    var stepZ = (dz / dist) * finnWalkSpeed;
+                    finnObject.position.x += stepX;
+                    finnObject.position.z += stepZ;
+
+                    // Face direction of movement
+                    var targetAngle = Math.atan2(dx, dz);
+                    // Smooth rotation
+                    var rotDiff = targetAngle - finnCurrentRotation;
+                    while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+                    while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+                    finnCurrentRotation += rotDiff * 0.1;
+                    finnObject.rotation.y = finnCurrentRotation;
+
+                    // Walking bob — sway side to side + slight up/down
+                    finnWalkPhase += 0.15;
+                    finnObject.rotation.z = Math.sin(finnWalkPhase) * 0.06;
+                    finnObject.position.y = finnBaseY + Math.abs(Math.sin(finnWalkPhase)) * 0.03;
+                }
+            } else {
+                // Idle — slight breathing
+                finnWalkPhase += 0.02;
+                finnObject.position.y = finnBaseY + Math.sin(finnWalkPhase) * 0.01;
+            }
+
+            // Sync label and mumble sprite position with Finn
+            if (finnLabel) {
+                finnLabel.position.x = finnObject.position.x;
+                finnLabel.position.z = finnObject.position.z;
+            }
+            if (mumbleSpriteRef) {
+                mumbleSpriteRef.position.x = finnObject.position.x;
+                mumbleSpriteRef.position.z = finnObject.position.z;
+            }
+        }
+
         renderer.render(scene, camera);
     }
 
