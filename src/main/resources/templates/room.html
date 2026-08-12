@@ -170,29 +170,212 @@ function closeOverlay() {
     camera.rotation.order = 'YXZ';
     camera.rotation.y = 0;
 
-    var renderer = new THREE.WebGLRenderer({ antialias: true });
+    var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.shadowMap.enabled = false;
     document.body.appendChild(renderer.domElement);
 
-    // ---- Lighting ----
-    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+    // ---- Night sky dome with stars (Northern Hemisphere) ----
+    // var skyCanvas = document.createElement('canvas');
+    // skyCanvas.width = 2048;
+    // skyCanvas.height = 1024;
+    // var sctx = skyCanvas.getContext('2d');
+    //
+    // // Deep night sky gradient
+    // var skyGrad = sctx.createLinearGradient(0, 0, 0, 1024);
+    // skyGrad.addColorStop(0, '#010208');
+    // skyGrad.addColorStop(0.2, '#030614');
+    // skyGrad.addColorStop(0.45, '#050a1a');
+    // skyGrad.addColorStop(0.6, '#080f25');
+    // skyGrad.addColorStop(0.72, '#0c1428');
+    // skyGrad.addColorStop(0.78, '#101830');
+    // skyGrad.addColorStop(0.82, '#0a1020');
+    // skyGrad.addColorStop(1, '#050810');
+    // sctx.fillStyle = skyGrad;
+    // sctx.fillRect(0, 0, 2048, 1024);
 
-    var dirLight = new THREE.DirectionalLight(0xfff4e0, 0.8);
-    dirLight.position.set(5, 8, 5);
-    dirLight.castShadow = true;
-    dirLight.shadow.mapSize.set(2048, 2048);
-    dirLight.shadow.camera.left = -10;
-    dirLight.shadow.camera.right = 10;
-    dirLight.shadow.camera.top = 10;
-    dirLight.shadow.camera.bottom = -10;
-    scene.add(dirLight);
+    // Milky Way band — faint diagonal cloud
+    // sctx.save();
+    // sctx.translate(1024, 400);
+    // sctx.rotate(-0.25);
+    // var mwGrad = sctx.createLinearGradient(0, -120, 0, 120);
+    // mwGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    // mwGrad.addColorStop(0.3, 'rgba(80,90,130,0.06)');
+    // mwGrad.addColorStop(0.5, 'rgba(120,130,170,0.12)');
+    // mwGrad.addColorStop(0.7, 'rgba(80,90,130,0.06)');
+    // mwGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    // sctx.fillStyle = mwGrad;
+    // sctx.fillRect(-1200, -120, 2400, 240);
+    // // Milky Way dense clusters
+    // for (var mwi = 0; mwi < 400; mwi++) {
+    //     var mwx = (Math.random() - 0.5) * 2400;
+    //     var mwy = (Math.random() - 0.5) * 180;
+    //     var mws = Math.random() * 0.6 + 0.1;
+    //     sctx.fillStyle = 'rgba(180,190,220,' + (Math.random() * 0.15 + 0.03) + ')';
+    //     sctx.beginPath();
+    //     sctx.arc(mwx, mwy, mws, 0, Math.PI * 2);
+    //     sctx.fill();
+    // }
+    // sctx.restore();
 
-    var fillLight = new THREE.PointLight(0x88aaff, 0.5, 30);
-    fillLight.position.set(0, 2.5, -2);
-    scene.add(fillLight);
+    // Stars — Northern Hemisphere constellations + field stars
+    // Star field: many small dim stars across upper 75% of sky
+    // for (var si = 0; si < 900; si++) {
+    //     var sx = Math.random() * 2048;
+    //     var sy = Math.random() * 780;
+    //     var sbrightness = Math.random();
+    //     var ssize = sbrightness * 1.4 + 0.2;
+    //     var salpha = sbrightness * 0.7 + 0.15;
+    //     // Star color: white, blue-white, yellow, orange, red
+    //     var scolor;
+    //     var sc = Math.random();
+    //     if (sc < 0.55) scolor = '255,255,255';          // white
+    //     else if (sc < 0.75) scolor = '200,215,255';     // blue-white
+    //     else if (sc < 0.88) scolor = '255,250,220';     // yellow-white
+    //     else if (sc < 0.96) scolor = '255,220,170';     // orange
+    //     else scolor = '255,180,150';                     // red
+    //     sctx.fillStyle = 'rgba(' + scolor + ',' + salpha + ')';
+    //     sctx.beginPath();
+    //     sctx.arc(sx, sy, ssize, 0, Math.PI * 2);
+    //     sctx.fill();
+    //     // Glow for brighter stars
+    //     if (sbrightness > 0.75) {
+    //         sctx.fillStyle = 'rgba(' + scolor + ',' + (salpha * 0.15) + ')';
+    //         sctx.beginPath();
+    //         sctx.arc(sx, sy, ssize * 3, 0, Math.PI * 2);
+    //         sctx.fill();
+    //     }
+    // }
+    //
+    // // Big Dipper (Ursa Major) — northern sky, upper left
+    // var bigDipper = [];
+    // bigDipper.push([380, 250]); bigDipper.push([460, 230]); bigDipper.push([545, 245]); bigDipper.push([615, 280]);
+    // bigDipper.push([640, 340]); bigDipper.push([560, 360]); bigDipper.push([490, 340]);
+    // sctx.fillStyle = 'rgba(255,255,255,0.95)';
+    // bigDipper.forEach(function (p) {
+    //     sctx.beginPath();
+    //     sctx.arc(p[0], p[1], 2.2, 0, Math.PI * 2);
+    //     sctx.fill();
+    //     sctx.fillStyle = 'rgba(200,215,255,0.12)';
+    //     sctx.beginPath();
+    //     sctx.arc(p[0], p[1], 7, 0, Math.PI * 2);
+    //     sctx.fill();
+    //     sctx.fillStyle = 'rgba(255,255,255,0.95)';
+    // });
+    // // Connect Big Dipper stars faintly
+    // sctx.strokeStyle = 'rgba(120,140,180,0.12)';
+    // sctx.lineWidth = 1;
+    // sctx.beginPath();
+    // bigDipper.forEach(function (p, i) {
+    //     if (i === 0) sctx.moveTo(p[0], p[1]); else sctx.lineTo(p[0], p[1]);
+    // });
+    // sctx.stroke();
+    //
+    // // Cassiopeia — W shape, upper right
+    // var cassiopeia = [];
+    // cassiopeia.push([1550, 200]); cassiopeia.push([1620, 260]); cassiopeia.push([1680, 200]); cassiopeia.push([1740, 270]); cassiopeia.push([1800, 210]);
+    // cassiopeia.forEach(function (p) {
+    //     sctx.beginPath();
+    //     sctx.arc(p[0], p[1], 2, 0, Math.PI * 2);
+    //     sctx.fill();
+    //     sctx.fillStyle = 'rgba(200,215,255,0.1)';
+    //     sctx.beginPath();
+    //     sctx.arc(p[0], p[1], 6, 0, Math.PI * 2);
+    //     sctx.fill();
+    //     sctx.fillStyle = 'rgba(255,255,255,0.95)';
+    // });
+    //
+    // // Polaris (North Star) — bright, near top center
+    // sctx.fillStyle = 'rgba(255,250,240,1)';
+    // sctx.beginPath();
+    // sctx.arc(1024, 120, 3, 0, Math.PI * 2);
+    // sctx.fill();
+    // sctx.fillStyle = 'rgba(200,215,255,0.15)';
+    // sctx.beginPath();
+    // sctx.arc(1024, 120, 12, 0, Math.PI * 2);
+    // sctx.fill();
+    // sctx.fillStyle = 'rgba(200,215,255,0.05)';
+    // sctx.beginPath();
+    // sctx.arc(1024, 120, 24, 0, Math.PI * 2);
+    // sctx.fill();
+    //
+    // // Orion — lower left area
+    // var orion = [];
+    // orion.push([200, 580]); orion.push([260, 600]); orion.push([320, 620]);
+    // orion.push([170, 520]); orion.push([340, 540]);
+    // orion.push([230, 690]); orion.push([310, 700]);
+    // orion.forEach(function (p) {
+    //     sctx.fillStyle = 'rgba(255,240,220,0.9)';
+    //     sctx.beginPath();
+    //     sctx.arc(p[0], p[1], 1.8, 0, Math.PI * 2);
+    //     sctx.fill();
+    //     sctx.fillStyle = 'rgba(255,220,170,0.1)';
+    //     sctx.beginPath();
+    //     sctx.arc(p[0], p[1], 5, 0, Math.PI * 2);
+    //     sctx.fill();
+    // });
+    //
+    // // Distant mountain silhouettes — very dark at night
+    // sctx.fillStyle = 'rgba(8,12,22,0.9)';
+    // sctx.beginPath();
+    // sctx.moveTo(0, 800);
+    // for (var mx = 0; mx <= 2048; mx += 50) {
+    //     var mh = 800 - (Math.sin(mx * 0.009) * 35 + Math.sin(mx * 0.022) * 18 + Math.cos(mx * 0.006) * 28);
+    //     sctx.lineTo(mx, mh);
+    // }
+    // sctx.lineTo(2048, 1024);
+    // sctx.lineTo(0, 1024);
+    // sctx.closePath();
+    // sctx.fill();
+    //
+    // // Closer mountains — nearly black
+    // sctx.fillStyle = 'rgba(4,6,12,0.95)';
+    // sctx.beginPath();
+    // sctx.moveTo(0, 830);
+    // for (var mx2 = 0; mx2 <= 2048; mx2 += 35) {
+    //     var mh2 = 830 - (Math.sin(mx2 * 0.014 + 2) * 25 + Math.cos(mx2 * 0.009 + 1) * 20);
+    //     sctx.lineTo(mx2, mh2);
+    // }
+    // sctx.lineTo(2048, 1024);
+    // sctx.lineTo(0, 1024);
+    // sctx.closePath();
+    // sctx.fill();
+    //
+    // var skyTex = new THREE.CanvasTexture(skyCanvas);
+    // scene.background = skyTex;
+    //
+    // // Sky dome for 3D parallax
+    // var skyGeo = new THREE.SphereGeometry(250, 32, 16);
+    // var skyMat = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false });
+    // var skyDome = new THREE.Mesh(skyGeo, skyMat);
+    // scene.add(skyDome);
+    //
+    // // ---- Lighting: moonlight + warm interior lights ----
+    // // Neutral white light — bright enough to see objects and textures
+    // var moonLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    // moonLight.position.set(-20, 40, 30);
+    // moonLight.castShadow = true;
+    // moonLight.shadow.mapSize.set(2048, 2048);
+    // moonLight.shadow.camera.left = -10;
+    // moonLight.shadow.camera.right = 10;
+    // moonLight.shadow.camera.top = 10;
+    // moonLight.shadow.camera.bottom = -10;
+    // moonLight.shadow.bias = -0.0005;
+    // scene.add(moonLight);
+
+    // Neutral ambient — enough to see colors without yellow tint
+    scene.add(new THREE.AmbientLight(0x8090b0, 0.55));
+
+    // Ceiling light — center of room, near ceiling
+    var ceilingLight = new THREE.PointLight(0xffffff, 0.8, 12, 1.5);
+    ceilingLight.position.set(0, 2.6, -2.6);
+    scene.add(ceilingLight);
+
+    // Cool fill near window
+    var windowLight = new THREE.PointLight(0xa0b0d0, 0.4, 8, 2);
+    windowLight.position.set(0, 1.5, -4.8);
+    scene.add(windowLight);
 
     // ---- Load OBJ + MTL ----
     var loading = document.getElementById('loading');
@@ -210,11 +393,9 @@ function closeOverlay() {
             // Room is centered at origin, Z goes negative (depth 5.2m)
             // Camera starts near z=+2.5 looking toward -z
 
-            // Enable shadows on all meshes
+            // Register meshes for click info (shadows disabled for performance)
             object.traverse(function (child) {
                 if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
                     // Register for click info
                     if (child.material && child.material.name) {
                         child.userData.materialName = child.material.name;
@@ -259,19 +440,70 @@ function closeOverlay() {
         finn.position.z -= center.z;
         finn.position.y -= scaledBox.min.y; // floor at y=0
 
-        // Move to room center (room spans z=0..-5.2, center at z=-2.6)
-        finn.position.z += -2.6;
+        // Move closer to window (room spans z=0..-5.2, window at z~-5.1)
+        finn.position.z += -4.0;
 
         // Rotate to face the entrance (toward +z / door)
         finn.rotation.y = 0;
 
-        // Apply material — Finn the Human
+        // Apply multi-color materials by body part (vertex coloring by height)
         finn.traverse(function (child) {
             if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
+                child.userData.isFinn = true;
+                var geo = child.geometry;
+                var positions = geo.attributes.position;
+                var colors = new Float32Array(positions.count * 3);
+
+                // Color palette
+                var skin = [0.96, 0.78, 0.63];       // #f5c8a0 human skin
+                var hat = [0.98, 0.98, 0.98];         // white hat
+                var shirt = [0.35, 0.65, 0.85];       // blue/cyan shirt
+                var pants = [0.15, 0.35, 0.75];       // blue pants
+                var backpack = [0.2, 0.6, 0.25];      // green backpack (back)
+                var shoes = [0.05, 0.05, 0.05];       // black shoes
+
+                // Get unscaled Y range for zone mapping
+                var minY = Infinity, maxY = -Infinity;
+                for (var i = 0; i < positions.count; i++) {
+                    var py = positions.getY(i);
+                    if (py < minY) minY = py;
+                    if (py > maxY) maxY = py;
+                }
+                var yRange = maxY - minY;
+
+                for (var vi = 0; vi < positions.count; vi++) {
+                    var y = positions.getY(vi);
+                    var z = positions.getZ(vi);
+                    var normY = (y - minY) / yRange; // 0=feet, 1=head
+
+                    var c;
+                    if (normY < 0.06) {
+                        c = shoes;          // bottom ~6% = shoes
+                    } else if (normY < 0.38) {
+                        c = pants;          // 6-38% = pants
+                    } else if (normY < 0.55) {
+                        // 38-55% = shirt or backpack (back = -z in original)
+                        if (z < -20) c = backpack;
+                        else c = shirt;
+                    } else if (normY < 0.82) {
+                        // 55-82% = shirt upper / backpack upper back
+                        if (z < -30 && normY < 0.70) c = backpack;
+                        else c = shirt;
+                    } else if (normY < 0.88) {
+                        c = skin;           // 82-88% = face/neck
+                    } else {
+                        c = hat;            // 88-100% = hat
+                    }
+
+                    colors[vi * 3] = c[0];
+                    colors[vi * 3 + 1] = c[1];
+                    colors[vi * 3 + 2] = c[2];
+                }
+
+                geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
                 var mat = new THREE.MeshPhongMaterial({
-                    color: 0xf5c8a0,
+                    vertexColors: true,
                     shininess: 15,
                     specular: 0x222222
                 });
@@ -301,7 +533,7 @@ function closeOverlay() {
         var labelTex = new THREE.CanvasTexture(labelCanvas);
         var labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true });
         var labelSprite = new THREE.Sprite(labelMat);
-        labelSprite.position.set(0, 2.2, -2.6);
+        labelSprite.position.set(0, 1.8, -4.0);
         labelSprite.scale.set(3, 0.75, 1);
         scene.add(labelSprite);
     }, undefined, function (err) {
@@ -313,7 +545,7 @@ function closeOverlay() {
 
     // ---- First-Person Controls ----
     var moveState = { forward: false, backward: false, left: false, right: false, up: false, down: false };
-    var moveSpeed = 0.05;
+    var moveSpeed = 0.08;
     var pitch = -0.15, yaw = 0;
     var pointerLocked = false;
     var started = false;
