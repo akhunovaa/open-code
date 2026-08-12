@@ -375,11 +375,13 @@ function closeOverlay() {
 
     // Mobile touch look — swipe anywhere on screen
     var touchX = 0, touchY = 0, lookActive = false;
+    var touchStartX = 0, touchStartY = 0, touchMoved = false;
     renderer.domElement.style.touchAction = 'none';
 
-    function lookStart(x, y) { touchX = x; touchY = y; lookActive = true; }
+    function lookStart(x, y) { touchX = x; touchY = y; lookActive = true; touchStartX = x; touchStartY = y; touchMoved = false; }
     function lookMove(x, y) {
         if (!lookActive) return;
+        if (Math.abs(x - touchStartX) > 8 || Math.abs(y - touchStartY) > 8) touchMoved = true;
         yaw += (x - touchX) * 0.005;
         pitch = Math.max(-1.4, Math.min(1.4, pitch - (y - touchY) * 0.005));
         touchX = x; touchY = y;
@@ -397,7 +399,14 @@ function closeOverlay() {
         var t = e.touches[0];
         lookMove(t.clientX, t.clientY);
     }, { passive: false });
-    renderer.domElement.addEventListener('touchend', lookEnd);
+    renderer.domElement.addEventListener('touchend', function (e) {
+        lookEnd();
+        // Tap detection — if finger didn't move much, treat as click
+        if (!touchMoved && started) {
+            var t = e.changedTouches[0];
+            doRaycast(t.clientX, t.clientY);
+        }
+    }, { passive: false });
     renderer.domElement.addEventListener('touchcancel', lookEnd);
 
     // Pointer events for unified mouse/touch
@@ -473,13 +482,13 @@ function closeOverlay() {
         return interactives;
     }
 
-    renderer.domElement.addEventListener('click', function (e) {
+    function doRaycast(clientX, clientY) {
         if (!started) { startScene(); return; }
         if (pointerLocked) {
             mouse.x = 0; mouse.y = 0;
         } else {
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
         }
         raycaster.setFromCamera(mouse, camera);
         var meshes = getInteractiveMeshes();
@@ -494,6 +503,10 @@ function closeOverlay() {
             var matName = hit.userData.materialName || (hit.material ? hit.material.name : 'unknown');
             showInfoPanel(matName, hit);
         }
+    }
+
+    renderer.domElement.addEventListener('click', function (e) {
+        doRaycast(e.clientX, e.clientY);
     });
 
     function showInfoPanel(matName, mesh) {
