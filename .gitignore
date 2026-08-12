@@ -18,3 +18,7 @@ Thumbs.db
 
 ### Spring Boot ###
 *.original
+
+### Large binary assets (not needed at runtime) ###
+src/main/resources/static/room/room.blend
+src/main/resources/templates/room/
