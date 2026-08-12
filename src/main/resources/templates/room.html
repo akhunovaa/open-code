@@ -536,12 +536,81 @@ function closeOverlay() {
         labelSprite.position.set(0, 1.8, -4.0);
         labelSprite.scale.set(3, 0.75, 1);
         scene.add(labelSprite);
+
+        // ---- Mumbling text above Finn ----
+        var mumbles = [
+            'ммм... нет...',
+            'оставьте меня...',
+            'не хочу...',
+            'холодно...',
+            'скучно...',
+            'ну зачем...',
+            'опять...',
+            'нет, нет, нет...',
+            'mmm... no...',
+            'тихо...',
+            'идите...',
+            'не сегодня...',
+            'хррр...',
+            'дай поспать...',
+            'ну и ладно...',
+            'никого не хочу видеть...',
+            'тссс...',
+            'снова тут?...',
+            'ну и что...',
+            'могу я побыть один?...'
+        ];
+
+        var mumbleCanvas = document.createElement('canvas');
+        mumbleCanvas.width = 512;
+        mumbleCanvas.height = 128;
+        var mctx = mumbleCanvas.getContext('2d');
+        var mumbleTex = new THREE.CanvasTexture(mumbleCanvas);
+        mumbleMat = new THREE.SpriteMaterial({ map: mumbleTex, transparent: true, opacity: 0 });
+        var mumbleSprite = new THREE.Sprite(mumbleMat);
+        mumbleSprite.position.set(0, 2.3, -4.0);
+        mumbleSprite.scale.set(2.5, 0.6, 1);
+        scene.add(mumbleSprite);
+
+        var mumbleVisible = false;
+        mumbleOpacity = 0;
+        mumbleTargetOpacity = 0;
+        var mumbleTimer = null;
+
+        function showNextMumble() {
+            var text = mumbles[Math.floor(Math.random() * mumbles.length)];
+            mctx.clearRect(0, 0, 512, 128);
+            mctx.font = 'italic 36px Arial';
+            mctx.fillStyle = '#aaa';
+            mctx.textAlign = 'center';
+            mctx.textBaseline = 'middle';
+            mctx.fillText(text, 256, 64);
+            mumbleTex.needsUpdate = true;
+
+            // Fade in
+            mumbleTargetOpacity = 0.85;
+
+            // After 3 seconds, fade out
+            setTimeout(function () {
+                mumbleTargetOpacity = 0;
+            }, 3000);
+
+            // Schedule next mumble in 5-20 seconds
+            var nextDelay = 5000 + Math.random() * 15000;
+            mumbleTimer = setTimeout(showNextMumble, nextDelay);
+        }
+
+        // Start first mumble after 3 seconds
+        mumbleTimer = setTimeout(showNextMumble, 3000);
     }, undefined, function (err) {
         console.error('Finn load error:', err);
     });
 
     // ---- Interactive registry ----
     var interactives = [];
+    var mumbleMat = null;
+    var mumbleOpacity = 0;
+    var mumbleTargetOpacity = 0;
 
     // ---- First-Person Controls ----
     var moveState = { forward: false, backward: false, left: false, right: false, up: false, down: false };
@@ -782,6 +851,12 @@ function closeOverlay() {
     function animate() {
         requestAnimationFrame(animate);
         updateCamera();
+        // Animate mumble sprite fade
+        if (mumbleOpacity !== mumbleTargetOpacity) {
+            mumbleOpacity += (mumbleTargetOpacity - mumbleOpacity) * 0.08;
+            if (Math.abs(mumbleOpacity - mumbleTargetOpacity) < 0.01) mumbleOpacity = mumbleTargetOpacity;
+            mumbleMat.opacity = mumbleOpacity;
+        }
         renderer.render(scene, camera);
     }
 
