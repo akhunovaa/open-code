@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: spring-mvc-3d
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: JAVA_VERSION
+        value: "17"
+    healthCheckPath: /
+    autoDeploy: true

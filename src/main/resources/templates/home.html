@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>3D Архитектура Spring MVC</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #050914;
+            color: #c8d8f5;
+            font: 13px Arial, sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #topbar {
+            position: fixed;
+            inset: 0 0 auto;
+            z-index: 3;
+            padding: 12px 18px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            background: rgba(5, 9, 20, .9);
+            border-bottom: 1px solid #20365d;
+        }
+
+        h1 {
+            margin: 0;
+            color: #62a5ff;
+            font-size: 16px;
+        }
+
+        button {
+            border: 1px solid #3c70b6;
+            border-radius: 4px;
+            padding: 6px 12px;
+            background: #10284b;
+            color: #9bc7ff;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #194276;
+            color: white;
+        }
+
+        #legend, #info {
+            position: fixed;
+            z-index: 2;
+            background: rgba(5, 9, 20, .92);
+            border: 1px solid #20365d;
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        #legend {
+            left: 16px;
+            bottom: 16px;
+            line-height: 1.8;
+            color: #9baac2;
+        }
+
+        #legend b {
+            color: #62a5ff;
+        }
+
+        #info {
+            display: none;
+            top: 68px;
+            right: 16px;
+            width: 320px;
+            max-height: 70vh;
+            overflow: auto;
+        }
+
+        #info h2 {
+            margin: 0 24px 10px 0;
+            color: #62a5ff;
+            font-size: 15px;
+        }
+
+        #info p {
+            color: #aebbd0;
+            line-height: 1.5;
+        }
+
+        #info .close {
+            position: absolute;
+            top: 7px;
+            right: 8px;
+            padding: 2px 7px;
+        }
+
+        #crosshair {
+            display: none;
+            position: fixed;
+            z-index: 2;
+            left: 50%;
+            top: 50%;
+            width: 20px;
+            height: 20px;
+            transform: translate(-50%, -50%);
+        }
+
+        #crosshair:before, #crosshair:after {
+            content: '';
+            position: absolute;
+            background: #82b8ff;
+        }
+
+        #crosshair:before {
+            left: 9px;
+            height: 20px;
+            width: 2px;
+        }
+
+        #crosshair:after {
+            top: 9px;
+            width: 20px;
+            height: 2px;
+        }
+
+        #overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, .86);
+            text-align: center;
+            cursor: pointer;
+        }
+
+        #overlay h2 {
+            color: #62a5ff;
+            font-size: 28px;
+            margin: 0 0 12px;
+        }
+
+        #overlay p {
+            max-width: 520px;
+            color: #aebbd0;
+            line-height: 1.7;
+        }
+
+        #overlay strong {
+            color: #82b8ff;
+        }
+
+        #start-button { margin-top: 18px; font-size: 16px; padding: 12px 28px; touch-action: manipulation; }
+        #overlay { touch-action: manipulation; }
+
+        #mobile-controls { display: none; position: fixed; inset: auto 16px 18px; z-index: 4; justify-content: space-between; align-items: end; pointer-events: none; }
+        #mobile-controls .pad { display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(2, 48px); gap: 5px; }
+        #mobile-controls button { width: 48px; height: 48px; padding: 0; opacity: .8; pointer-events: auto; touch-action: none; }
+        #mobile-controls .empty { visibility: hidden; }
+        #mobile-controls .vertical { display: flex; gap: 5px; }
+        @media (max-width: 700px), (pointer: coarse) {
+            #topbar { padding: 8px 10px; gap: 8px; }
+            #topbar h1 { font-size: 13px; }
+            #topbar > span { display: none; }
+            #legend { left: 10px; bottom: 10px; font-size: 11px; padding: 8px; }
+            #mobile-controls { display: flex; }
+            #overlay h2 { font-size: 22px; }
+            #overlay p { padding: 0 24px; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+<div id="overlay">
+    <h2>3D Архитектура Spring MVC</h2>
+    <p>Исследуйте локальную сцену от первого лица.<br><strong>Клик</strong> — начать обзор, <strong>W A S D</strong> —
+        перемещение,<br><strong>мышь</strong> — осмотр, <strong>Space / C</strong> — вверх / вниз, <strong>ESC</strong>
+        — освободить мышь.</p>
+    <button id="start-button" type="button" onclick="closeOverlay()" ontouchend="closeOverlay()" ontouchstart="closeOverlay()">Начать обзор</button>
+</div>
+<div id="topbar"><h1>🎮 Spring MVC Architecture</h1><span>Привет, <span th:text="${name}">Мир</span></span>
+    <button id="reset">Сбросить камеру</button>
+    <button id="gridToggle">Скрыть сетку</button>
+</div>
+<div id="crosshair"></div>
+<aside id="info">
+    <button class="close">×</button>
+    <h2></h2>
+    <p></p></aside>
+<div id="legend"><b>Легенда</b><br><span style="color:#42a5f5">●</span> Spring Boot<br><span
+        style="color:#ef5350">●</span> Controller<br><span style="color:#66bb6a">●</span> Thymeleaf<br><span
+        style="color:#ffca28">●</span> Test / MockMvc<br><span style="color:#ab47bc">●</span> HTTP flow
+</div>
+<div id="mobile-controls">
+    <div class="pad"><span class="empty"></span><button data-key="KeyW">▲</button><span class="empty"></span><button data-key="KeyA">◀</button><button data-key="KeyS">▼</button><button data-key="KeyD">▶</button></div>
+    <div class="vertical"><button data-key="Space">↑</button><button data-key="KeyC">↓</button></div>
+</div>
+<canvas id="scene"></canvas>
+<script>
+    function closeOverlay() {
+        var ov = document.getElementById('overlay');
+        if (ov && ov.style.display !== 'none') {
+            ov.style.display = 'none';
+            try { document.body.style.touchAction = 'none'; } catch (e) {}
+        }
+    }
+    (function () {
+        function bind(el, types) {
+            if (!el) return;
+            types.forEach(function (type) {
+                el.addEventListener(type, function (e) {
+                    e.preventDefault();
+                    closeOverlay();
+                }, { passive: false });
+            });
+        }
+        bind(document.getElementById('start-button'), ['pointerdown', 'touchstart', 'click']);
+        bind(document.getElementById('overlay'), ['pointerdown', 'touchstart', 'click']);
+    })();
+</script>
+<script>
+    (() => {
+        const canvas = document.getElementById('scene'), ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('overlay'), crosshair = document.getElementById('crosshair');
+        const info = document.getElementById('info');
+        let w, h, locked = false, started = false, gridVisible = true, yaw = 0, pitch = -.16;
+        const keys = {}, camera = {x: 0, y: 8, z: 34};
+        const objects = [
+            {
+                name: 'Spring Boot Application',
+                x: 0,
+                y: 9,
+                z: 0,
+                color: '#42a5f5',
+                shape: 'core',
+                text: 'Application.java\n@SpringBootApplication\nТочка запуска SpringApplication.run().'
+            },
+            {
+                name: 'HomeController',
+                x: -13,
+                y: 7,
+                z: 1,
+                color: '#ef5350',
+                shape: 'box',
+                text: 'web/HomeController.java\n@Controller\nGET / возвращает шаблон home.'
+            },
+            {
+                name: 'Model',
+                x: -8,
+                y: 4,
+                z: -4,
+                color: '#ffca28',
+                shape: 'diamond',
+                text: 'Model\nПередаёт атрибут name из контроллера в представление.'
+            },
+            {
+                name: 'Thymeleaf home.html',
+                x: 13,
+                y: 7,
+                z: 1,
+                color: '#66bb6a',
+                shape: 'box',
+                text: 'resources/templates/home.html\nДинамическое HTML-представление.'
+            },
+            {
+                name: 'MockMvc Tests',
+                x: 0,
+                y: 2,
+                z: -10,
+                color: '#ffca28',
+                shape: 'cylinder',
+                text: 'HomeControllerTest.java\n@WebMvcTest + MockMvc\nПроверяет статус, view и HTML.'
+            },
+            {
+                name: 'HTTP Request',
+                x: 0,
+                y: 12,
+                z: 16,
+                color: '#ab47bc',
+                shape: 'ring',
+                text: 'Локальный поток запроса\nGET / → Controller → Model → Thymeleaf.'
+            }
+        ];
+        const flows = [];
+        flows.push([objects[5], objects[0]]);
+        flows.push([objects[0], objects[1]]);
+        flows.push([objects[0], objects[3]]);
+        flows.push([objects[0], objects[4]]);
+
+        const photoPanels = [
+            {src: '/photos/photo-1.jpg', x: -9, y: 8, z: -3, width: 6, height: 4, title: 'Фотография 1'},
+            {src: '/photos/photo-2.jpg', x: 9, y: 8, z: -3, width: 6, height: 4, title: 'Фотография 2'},
+            {src: '/photos/photo-3.jpg', x: -9, y: 8, z: 10, width: 6, height: 4, title: 'Фотография 3'},
+            {src: '/photos/photo-4.jpg', x: 9, y: 8, z: 10, width: 6, height: 4, title: 'Фотография 4'},
+            {src: '/photos/photo-5.jpg', x: 0, y: 13, z: 3, width: 7, height: 4.5, title: 'Фотография 5'}
+        ];
+        photoPanels.forEach(function (panel) {
+            panel.image = new Image();
+            panel.image.onload = function () { panel.loaded = true; };
+            panel.image.src = panel.src;
+        });
+
+        function resize() {
+            w = canvas.width = innerWidth;
+            h = canvas.height = innerHeight;
+        }
+
+        function project(p) {
+            let x = p.x - camera.x, y = p.y - camera.y, z = p.z - camera.z;
+            const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+            const nx = x * cy - z * sy, nz = x * sy + z * cy, ny = y * cp - nz * sp, depth = y * sp + nz * cp;
+            const scale = 520 / Math.max(1, depth + 18);
+            return {x: w / 2 + nx * scale, y: h / 2 - ny * scale, depth, scale};
+        }
+
+        function label(text, x, y, color) {
+            ctx.font = 'bold 13px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = color;
+            ctx.fillText(text, x, y);
+        }
+
+        function drawPhotoPanel(panel) {
+            const center = project(panel);
+            if (!panel.loaded || center.depth < -17) return;
+
+            const left = project({x: panel.x - panel.width / 2, y: panel.y + panel.height / 2, z: panel.z});
+            const right = project({x: panel.x + panel.width / 2, y: panel.y + panel.height / 2, z: panel.z});
+            const bottomRight = project({x: panel.x + panel.width / 2, y: panel.y - panel.height / 2, z: panel.z});
+            const bottomLeft = project({x: panel.x - panel.width / 2, y: panel.y - panel.height / 2, z: panel.z});
+            const width = right.x - left.x;
+            const height = bottomLeft.y - left.y;
+            if (width < 2 || height < 2) return;
+
+            ctx.save();
+            ctx.globalAlpha = .96;
+            ctx.drawImage(panel.image, left.x, left.y, width, height);
+            ctx.strokeStyle = '#86bfff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(left.x, left.y, width, height);
+            ctx.restore();
+            label(panel.title, center.x, bottomLeft.y + 20, '#b9d7ff');
+            panel.screen = center;
+        }
+
+        function drawObject(o, t) {
+            const p = project(o);
+            if (p.depth < -17) return;
+            const s = Math.max(4, Math.min(42, p.scale * 2.3));
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(t * .0003);
+            ctx.strokeStyle = o.color;
+            ctx.fillStyle = o.color + '44';
+            ctx.lineWidth = 2;
+            if (o.shape === 'core') {
+                ctx.beginPath();
+                ctx.arc(0, 0, s, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(0, 0, s * .55, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (o.shape === 'diamond') {
+                ctx.beginPath();
+                ctx.moveTo(0, -s);
+                ctx.lineTo(s, 0);
+                ctx.lineTo(0, s);
+                ctx.lineTo(-s, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            } else if (o.shape === 'ring') {
+                ctx.beginPath();
+                ctx.arc(0, 0, s * .7, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(0, 0, s * .35, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (o.shape === 'cylinder') {
+                ctx.beginPath();
+                ctx.ellipse(0, -s * .45, s, s * .3, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.rect(-s, -s * .45, s * 2, s);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.ellipse(0, s * .55, s, s * .3, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            } else {
+                ctx.strokeRect(-s, -s * .65, s * 2, s * 1.3);
+                ctx.fillRect(-s, -s * .65, s * 2, s * 1.3);
+            }
+            ctx.restore();
+            label(o.name, p.x, p.y + s + 18, o.color);
+            o.screen = p;
+        }
+
+        function draw(t) {
+            ctx.fillStyle = '#050914';
+            ctx.fillRect(0, 0, w, h);
+            const grad = ctx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, '#081735');
+            grad.addColorStop(1, '#050914');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+            if (gridVisible) {
+                ctx.strokeStyle = 'rgba(52,91,145,.2)';
+                ctx.lineWidth = 1;
+                for (let i = -10; i <= 10; i++) {
+                    const a = project({x: i * 5, y: 0, z: -20}), b = project({x: i * 5, y: 0, z: 80});
+                    ctx.beginPath();
+                    ctx.moveTo(a.x, a.y);
+                    ctx.lineTo(b.x, b.y);
+                    ctx.stroke();
+                }
+            }
+            flows.forEach(function (flow) {
+                const a = flow[0], b = flow[1];
+                const p = project(a), q = project(b);
+                ctx.strokeStyle = a.color;
+                ctx.globalAlpha = .45;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(q.x, q.y);
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+                const f = (t % 2400) / 2400;
+                const x = p.x + (q.x - p.x) * f, y = p.y + (q.y - p.y) * f;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            objects.slice().sort((a, b) => b.z - a.z).forEach(o => drawObject(o, t));
+            photoPanels.slice().sort((a, b) => b.z - a.z).forEach(drawPhotoPanel);
+            requestAnimationFrame(draw);
+        }
+
+        function move() {
+            const speed = .35, dx = Math.sin(yaw), dz = Math.cos(yaw);
+            if (keys.KeyW) {
+                camera.x += dx * speed;
+                camera.z += dz * speed
+            }
+            if (keys.KeyS) {
+                camera.x -= dx * speed;
+                camera.z -= dz * speed
+            }
+            if (keys.KeyA) {
+                camera.x -= dz * speed;
+                camera.z += dx * speed
+            }
+            if (keys.KeyD) {
+                camera.x += dz * speed;
+                camera.z -= dx * speed
+            }
+            if (keys.Space) camera.y += speed;
+            if (keys.KeyC) camera.y -= speed;
+        }
+
+        function loop() {
+            move();
+            requestAnimationFrame(loop)
+        }
+
+        const touchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.userAgent.indexOf('Mobile') !== -1);
+
+        function startScene() {
+            started = true;
+            overlay.style.display = 'none';
+            document.body.style.touchAction = 'none';
+            crosshair.style.display = touchDevice ? 'none' : (canvas === document.pointerLockElement ? 'block' : 'none');
+            if (!touchDevice && canvas.requestPointerLock) {
+                try { canvas.requestPointerLock(); } catch (err) {}
+            }
+        }
+
+        overlay.addEventListener('click', startScene);
+        const startButton = document.getElementById('start-button');
+        startButton.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); startScene(); });
+        startButton.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); startScene(); }, { passive: false });
+        canvas.onclick = e => {
+            if (started) {
+                const hit = objects.find(o => o.screen && Math.hypot(e.clientX - o.screen.x, e.clientY - o.screen.y) < 35);
+                const photoHit = photoPanels.find(panel => panel.screen && panel.loaded &&
+                    Math.abs(e.clientX - panel.screen.x) < 130 && Math.abs(e.clientY - panel.screen.y) < 100);
+                if (photoHit) {
+                    info.querySelector('h2').textContent = photoHit.title;
+                    info.querySelector('p').textContent = '3D-проекция фотографии в локальной сцене.';
+                    info.style.display = 'block';
+                    return;
+                }
+                if (hit) {
+                    info.querySelector('h2').textContent = hit.name;
+                    info.querySelector('p').textContent = hit.text;
+                    info.style.display = 'block';
+                }
+            } else startScene()
+        };
+        document.addEventListener('pointerlockchange', () => {
+            locked = document.pointerLockElement === canvas;
+            if (locked) started = true;
+            overlay.style.display = (!locked && !started) ? 'flex' : 'none';
+            crosshair.style.display = locked ? 'block' : 'none';
+        });
+        document.addEventListener('mousemove', e => {
+            if (locked) {
+                yaw += e.movementX * .002;
+                pitch = Math.max(-1.4, Math.min(1.4, pitch - e.movementY * .002))
+            }
+        });
+        let touchX = 0, touchY = 0;
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            if (!started) startScene();
+            touchX = e.touches[0].clientX;
+            touchY = e.touches[0].clientY;
+        }, { passive: false });
+        canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            yaw += (touch.clientX - touchX) * .006;
+            pitch = Math.max(-1.4, Math.min(1.4, pitch - (touch.clientY - touchY) * .006));
+            touchX = touch.clientX;
+            touchY = touch.clientY;
+        }, { passive: false });
+        document.querySelectorAll('#mobile-controls button').forEach(button => {
+            const key = button.dataset.key;
+            button.addEventListener('touchstart', e => { e.preventDefault(); keys[key] = true; }, { passive: false });
+            button.addEventListener('touchend', e => { e.preventDefault(); keys[key] = false; }, { passive: false });
+            button.addEventListener('touchcancel', () => { keys[key] = false; });
+        });
+        document.addEventListener('keydown', e => {
+            keys[e.code] = true;
+            if (e.code === 'Escape' && locked) document.exitPointerLock()
+        });
+        document.addEventListener('keyup', e => keys[e.code] = false);
+        document.getElementById('reset').onclick = () => {
+            camera.x = 0;
+            camera.y = 8;
+            camera.z = 34;
+            yaw = 0;
+            pitch = -.16;
+            document.exitPointerLock()
+        };
+        document.getElementById('gridToggle').onclick = e => {
+            gridVisible = !gridVisible;
+            e.target.textContent = gridVisible ? 'Скрыть сетку' : 'Показать сетку'
+        };
+        info.querySelector('.close').onclick = () => info.style.display = 'none';
+        addEventListener('resize', resize);
+        resize();
+        draw(0);
+        loop();
+    })();
+</script>
+</body>
+</html>

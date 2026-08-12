@@ -1,0 +1,9 @@
+target/
+.idea/
+.vscode/
+.git/
+.gitignore
+*.md
+*.iml
+.DS_Store
+render.yaml
