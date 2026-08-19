@@ -98,14 +98,42 @@
             font-size: 14px; pointer-events: auto; transition: all 0.15s;
         }
         #finn-dialog .finn-close:hover { background: rgba(21,101,192,0.8); color: #fff; }
+
+        #steeve-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 30; display: none;
+            background: rgba(10,15,30,0.97); border: 1px solid rgba(245,181,59,0.5);
+            border-radius: 12px; padding: 24px; max-width: 420px; width: 90%;
+            text-align: center; pointer-events: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,.6);
+            opacity: 1; transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        #steeve-dialog.fade-out { opacity: 0; transform: translate(-50%,-40%); pointer-events: none; }
+        #steeve-dialog h2 { color: #f5b53b; font-size: 18px; margin-bottom: 12px; }
+        #steeve-dialog p { color: #ccc; font-size: 15px; line-height: 1.6; margin-bottom: 16px; }
+        #steeve-dialog .steeve-close {
+            background: rgba(245,181,59,0.15); border: 1px solid rgba(245,181,59,0.6);
+            color: #f5b53b; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s;
+        }
+        #steeve-dialog .steeve-close:hover { background: rgba(245,181,59,0.35); color: #fff; }
+
+        #steeve-dialog .steeve-price-btn {
+            background: rgba(21,101,192,0.4); border: 1px solid rgba(91,155,245,0.6);
+            color: #5b9bf5; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s; width: 100%;
+        }
+        #steeve-dialog .steeve-price-btn:hover { background: rgba(21,101,192,0.7); color: #fff; }
+        #steeve-dialog .steeve-price-btn:disabled { opacity: 0.6; cursor: wait; }
     </style>
 </head>
 <body>
 
 <div id="overlay">
     <h2>3D Комната — room.obj</h2>
-    <p>Интерактивная 3D-модель комнаты с текстурами из room.mtl<br>
-    Первый взгляд от первого лица: ходите по комнате и изучайте интерьер</p>
+    <p>Интерактивная 3D-модель двух комнат с текстурами<br>
+    Слева — комната Алексея Дементьева, Супер Пупер Биток Трейдера<br>
+    Первый взгляд от первого лица: ходите по комнатам и изучайте интерьер</p>
     <div class="controls">
         <div>🖱️ <b>Клик по экрану</b> — войти в режим обзора (захват мыши)</div>
         <div>⌨️ <b>W A S D</b> — перемещение | <b>Мышь</b> — осмотр</div>
@@ -140,6 +168,17 @@
     <h2>Паша Еремеев</h2>
     <p>— Привет! Я Паша. Но сейчас я не хочу разговаривать.<br><br>— Оставь меня в покое, пожалуйста. Я хороший человек, но сегодня не мой день для общения.</p>
     <button class="finn-close" onclick="closeFinnDialog()">Понятно, извини</button>
+</div>
+
+<div id="steeve-dialog">
+    <h2>Алексей Дементьев</h2>
+    <p id="steeve-dialog-text"><b>Супер Пупер Биток Трейдер</b><br><br>
+    — Привет! Я Алексей. В трейдинге я человек опытный и мечтаю научить каждого.<br><br>
+    — Расскажу многое полезное о реализации криптовалют, в особенности биткоина. Спрашивай когда захочешь!</p>
+    <div style="margin-bottom: 12px;">
+        <button class="steeve-price-btn" id="btc-price-btn" onclick="askBtcPrice()">💰 Сколько стоит биткоин?</button>
+    </div>
+    <button class="steeve-close" onclick="closeSteeveDialog()">Закрыть</button>
 </div>
 
 <script th:src="@{/vendor/three.min.js}"></script>
@@ -412,6 +451,22 @@ function closeOverlay() {
                     interactives.push(child);
                 }
             });
+
+            // ---- Second room copy to the left ----
+            var room2 = object.clone();
+            room2.position.x = -4.0;
+            room2.traverse(function (child) {
+                if (child.isMesh) {
+                    if (child.material && child.material.name) {
+                        child.userData.materialName = child.material.name;
+                    }
+                    interactives.push(child);
+                }
+            });
+            scene.add(room2);
+
+            // Load Steve (Alexey) inside the second room
+            loadSteeve();
         }, undefined, function (err) {
             loading.textContent = 'Ошибка загрузки OBJ: ' + err;
             console.error(err);
@@ -637,6 +692,167 @@ function closeOverlay() {
         console.error('Finn load error:', err);
     });
 
+    // ---- Load Steve (Alexey Dementiev) inside the left room ----
+    function loadSteeve() {
+        var steeveMtlLoader = new THREE.MTLLoader();
+        steeveMtlLoader.setPath('/steeve/');
+        steeveMtlLoader.load('minecraft_-_steve.mtl', function (steeveMats) {
+            steeveMats.preload();
+
+            var steeveObjLoader = new THREE.OBJLoader();
+            steeveObjLoader.setMaterials(steeveMats);
+            steeveObjLoader.setPath('/steeve/');
+            steeveObjLoader.load('minecraft_-_steve.obj', function (steve) {
+                // Steve bounds are ~16x32x8 units, scale to ~1.2m tall
+                var box = new THREE.Box3().setFromObject(steve);
+                var size = box.getSize(new THREE.Vector3());
+                var maxDim = Math.max(size.x, size.y, size.z);
+                var scale = 1.2 / maxDim;
+                steve.scale.setScalar(scale);
+
+                // Reposition: center horizontally, place on floor
+                var scaledBox = new THREE.Box3().setFromObject(steve);
+                var center = scaledBox.getCenter(new THREE.Vector3());
+                steve.position.x -= center.x;
+                steve.position.z -= center.z;
+                steve.position.y -= scaledBox.min.y;
+
+                // Place inside second room (room2 centered at x=-4.0)
+                steve.position.x += -4.0;
+                steve.position.z += -3.0;
+
+                // Store base Y for breathing animation
+                steeveBaseY = steve.position.y;
+                steve.rotation.y = 0;
+
+                // Register meshes for click interaction
+                steve.traverse(function (child) {
+                    if (child.isMesh) {
+                        child.userData.isSteeve = true;
+                        if (child.material && child.material.name) {
+                            child.userData.materialName = child.material.name;
+                        }
+                        interactives.push(child);
+                    }
+                });
+
+                scene.add(steve);
+                steeveObject = steve;
+
+                // ---- Text label above Steve ----
+                var stLabelCanvas = document.createElement('canvas');
+                stLabelCanvas.width = 1024;
+                stLabelCanvas.height = 256;
+                var stlctx = stLabelCanvas.getContext('2d');
+                stlctx.font = 'bold 44px Arial';
+                stlctx.fillStyle = '#f5b53b';
+                stlctx.textAlign = 'center';
+                stlctx.textBaseline = 'middle';
+                stlctx.fillText('Алексей Дементьев', 512, 80);
+                stlctx.font = '30px Arial';
+                stlctx.fillStyle = '#f5b53b';
+                stlctx.fillText('Супер Пупер Биток Трейдер', 512, 180);
+                var stLabelTex = new THREE.CanvasTexture(stLabelCanvas);
+                var stLabelMat = new THREE.SpriteMaterial({ map: stLabelTex, transparent: true });
+                var stLabelSprite = new THREE.Sprite(stLabelMat);
+                stLabelSprite.position.set(-4.0, 1.6, -3.0);
+                stLabelSprite.scale.set(2.6, 0.65, 1);
+                scene.add(stLabelSprite);
+                steeveLabel = stLabelSprite;
+
+                // ---- Mumbling text above Steve (crypto trader) ----
+                var steeveMumbles = [
+                    'биток завтра упадёт...',
+                    'покупай на дне...',
+                    'продавай на хаях...',
+                    'сатоши был прав...',
+                    'крипта — это свобода...',
+                    'блокчейн решит всё...',
+                    'только холд, ничего другого...',
+                    'диверсифицируй портфель...',
+                    'биток — цифровое золото...',
+                    'не вкладывай всё в один токен...',
+                    'хедж или скам... хедж...',
+                    'медвежий рынок... терпи...',
+                    'бычий тренд... держим...',
+                    'доллары обесцениваются...',
+                    'биток — наше будущее...',
+                    'альткоины — это риск...',
+                    'ликвидность высокая...',
+                    'технология блокчейн...',
+                    'ETF одобрили... растём...',
+                    'шортить рано...',
+                    'лонг — наше всё...',
+                    'волатильность — это нормально...',
+                    'реализация биткоина проста...',
+                    'энтузиасты изменят мир...',
+                    'не паникуй, покупай...'
+                ];
+
+                var stMumbleCanvas = document.createElement('canvas');
+                stMumbleCanvas.width = 512;
+                stMumbleCanvas.height = 128;
+                var smctx = stMumbleCanvas.getContext('2d');
+                var stMumbleTex = new THREE.CanvasTexture(stMumbleCanvas);
+                steeveMumbleMat = new THREE.SpriteMaterial({ map: stMumbleTex, transparent: true, opacity: 0 });
+                var stMumbleSprite = new THREE.Sprite(steeveMumbleMat);
+                stMumbleSprite.position.set(-4.0, 2.1, -3.0);
+                stMumbleSprite.scale.set(2.6, 0.65, 1);
+                scene.add(stMumbleSprite);
+                steeveMumbleSpriteRef = stMumbleSprite;
+
+                function showNextSteeveMumble() {
+                    var text = steeveMumbles[Math.floor(Math.random() * steeveMumbles.length)];
+                    smctx.clearRect(0, 0, 512, 128);
+                    smctx.font = 'italic 24px Arial';
+                    smctx.fillStyle = '#ffffff';
+                    smctx.textAlign = 'center';
+                    smctx.textBaseline = 'middle';
+
+                    // Wrap text into multiple lines so it fits the canvas
+                    var maxWidth = 480;
+                    var words = text.split(' ');
+                    var lines = [];
+                    var currentLine = '';
+                    for (var wi = 0; wi < words.length; wi++) {
+                        var testLine = currentLine.length ? currentLine + ' ' + words[wi] : words[wi];
+                        if (smctx.measureText(testLine).width > maxWidth && currentLine) {
+                            lines.push(currentLine);
+                            currentLine = words[wi];
+                        } else {
+                            currentLine = testLine;
+                        }
+                    }
+                    if (currentLine) lines.push(currentLine);
+
+                    var lineHeight = 26;
+                    var startY = 64 - ((lines.length - 1) * lineHeight) / 2;
+                    for (var li = 0; li < lines.length; li++) {
+                        smctx.fillText(lines[li], 256, startY + li * lineHeight);
+                    }
+                    stMumbleTex.needsUpdate = true;
+
+                    steeveMumbleTargetOpacity = 0.9;
+
+                    setTimeout(function () {
+                        steeveMumbleTargetOpacity = 0;
+                    }, 3000);
+
+                    var nextDelay = 5000 + Math.random() * 15000;
+                    steeveMumbleTimer = setTimeout(showNextSteeveMumble, nextDelay);
+                }
+
+                steeveMumbleTimer = setTimeout(showNextSteeveMumble, 4000);
+
+                scheduleNextSteeveWalk();
+            }, undefined, function (err) {
+                console.error('Steve OBJ load error:', err);
+            });
+        }, undefined, function (err) {
+            console.error('Steve MTL load error:', err);
+        });
+    }
+
     // ---- Interactive registry ----
     var interactives = [];
     var mumbleMat = null;
@@ -683,6 +899,48 @@ function closeOverlay() {
     function scheduleNextWalk() {
         var delay = 4000 + Math.random() * 8000; // 4-12 sec idle
         finnIdleTimer = setTimeout(startFinnWalk, delay);
+    }
+
+    // ---- Steve (Alexey) walking animation ----
+    var steeveObject = null;
+    var steeveLabel = null;
+    var steeveMumbleSpriteRef = null;
+    var steeveMumbleMat = null;
+    var steeveMumbleOpacity = 0;
+    var steeveMumbleTargetOpacity = 0;
+    var steeveMumbleTimer = null;
+    var steeveBaseY = 0;
+
+    // Waypoints inside second room (centered at x=-4.0, z spans 0..-5.26)
+    var steeveWaypoints = [];
+    steeveWaypoints.push({ x: -4.0, z: -4.0 });
+    steeveWaypoints.push({ x: -3.2, z: -2.5 });
+    steeveWaypoints.push({ x: -4.6, z: -1.5 });
+    steeveWaypoints.push({ x: -3.5, z: -3.5 });
+    steeveWaypoints.push({ x: -4.9, z: -4.2 });
+    steeveWaypoints.push({ x: -4.0, z: -2.0 });
+    steeveWaypoints.push({ x: -3.1, z: -1.0 });
+    steeveWaypoints.push({ x: -4.4, z: -3.0 });
+
+    var steeveCurrentWaypoint = 0;
+    var steeveWalkSpeed = 0.04;
+    var steeveWalkPhase = 0;
+    var steeveWalking = false;
+    var steeveIdleTimer = null;
+    var steeveTargetX = -4.0, steeveTargetZ = -4.0;
+    var steeveCurrentRotation = 0;
+
+    function startSteeveWalk() {
+        steeveCurrentWaypoint = (steeveCurrentWaypoint + 1) % steeveWaypoints.length;
+        var wp = steeveWaypoints[steeveCurrentWaypoint];
+        steeveTargetX = wp.x;
+        steeveTargetZ = wp.z;
+        steeveWalking = true;
+    }
+
+    function scheduleNextSteeveWalk() {
+        var delay = 4000 + Math.random() * 8000; // 4-12 sec idle
+        steeveIdleTimer = setTimeout(startSteeveWalk, delay);
     }
 
     // ---- First-Person Controls ----
@@ -874,6 +1132,10 @@ function closeOverlay() {
                 showFinnDialog();
                 return;
             }
+            if (hit.userData.isSteeve) {
+                showSteeveDialog();
+                return;
+            }
             var matName = hit.userData.materialName || (hit.material ? hit.material.name : 'unknown');
             showInfoPanel(matName, hit);
         }
@@ -920,6 +1182,55 @@ function closeOverlay() {
         if (finnDialogTimer) clearTimeout(finnDialogTimer);
     };
 
+    function showSteeveDialog() {
+        var dlg = document.getElementById('steeve-dialog');
+        dlg.classList.remove('fade-out');
+        dlg.style.display = 'block';
+    }
+
+    window.closeSteeveDialog = function () {
+        var dlg = document.getElementById('steeve-dialog');
+        dlg.classList.add('fade-out');
+        setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+    };
+
+    window.askBtcPrice = function () {
+        var btn = document.getElementById('btc-price-btn');
+        var textEl = document.getElementById('steeve-dialog-text');
+        if (!btn || !textEl) return;
+        btn.disabled = true;
+        btn.textContent = '⏳ Запрашиваю цену...';
+        textEl.innerHTML = '<b>Супер Пупер Биток Трейдер</b><br><br>— Секунду, сейчас гляну на биржу...';
+
+        fetch('/api/btc-price')
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (data) {
+                var usd = parseFloat(data.priceUsd);
+                var rub = parseFloat(data.priceRub);
+                var usdText = isFinite(usd)
+                    ? '$' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : data.priceUsd;
+                var rubText = isFinite(rub)
+                    ? '₽' + rub.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : data.priceRub;
+                textEl.innerHTML = '<b>Супер Пупер Биток Трейдер</b><br><br>' +
+                    '— Смотри, биток прямо сейчас стоит: <b style="color:#f5b53b">' + usdText + '</b><br>' +
+                    '(примерно <b style="color:#f5b53b">' + rubText + '</b>).<br><br>' +
+                    '— Покупай на просадках, продавай на хаях, и всё будет хорошо!';
+            })
+            .catch(function (err) {
+                textEl.innerHTML = '<b>Супер Пупер Биток Трейдер</b><br><br>' +
+                    '— Ой, биржа не ответила: ' + err.message + '. Попробуй ещё раз чуть позже.';
+            })
+            .finally(function () {
+                btn.disabled = false;
+                btn.textContent = '💰 Сколько стоит биткоин?';
+            });
+    };
+
     // ---- Animation Loop ----
     function animate() {
         requestAnimationFrame(animate);
@@ -930,6 +1241,13 @@ function closeOverlay() {
             mumbleOpacity += (mumbleTargetOpacity - mumbleOpacity) * 0.08;
             if (Math.abs(mumbleOpacity - mumbleTargetOpacity) < 0.01) mumbleOpacity = mumbleTargetOpacity;
             mumbleMat.opacity = mumbleOpacity;
+        }
+
+        // Animate Steve mumble sprite fade
+        if (steeveMumbleMat && steeveMumbleOpacity !== steeveMumbleTargetOpacity) {
+            steeveMumbleOpacity += (steeveMumbleTargetOpacity - steeveMumbleOpacity) * 0.08;
+            if (Math.abs(steeveMumbleOpacity - steeveMumbleTargetOpacity) < 0.01) steeveMumbleOpacity = steeveMumbleTargetOpacity;
+            steeveMumbleMat.opacity = steeveMumbleOpacity;
         }
 
         // Finn walking animation
@@ -979,6 +1297,56 @@ function closeOverlay() {
             if (mumbleSpriteRef) {
                 mumbleSpriteRef.position.x = finnObject.position.x;
                 mumbleSpriteRef.position.z = finnObject.position.z;
+            }
+        }
+
+        // Steve (Alexey) walking animation
+        if (steeveObject) {
+            if (steeveWalking) {
+                var sdx = steeveTargetX - steeveObject.position.x;
+                var sdz = steeveTargetZ - steeveObject.position.z;
+                var sdist = Math.sqrt(sdx * sdx + sdz * sdz);
+
+                if (sdist < 0.05) {
+                    // Reached waypoint — stop and idle
+                    steeveWalking = false;
+                    steeveObject.rotation.z = 0; // straighten up
+                    scheduleNextSteeveWalk();
+                } else {
+                    // Move toward target
+                    var sstepX = (sdx / sdist) * steeveWalkSpeed;
+                    var sstepZ = (sdz / sdist) * steeveWalkSpeed;
+                    steeveObject.position.x += sstepX;
+                    steeveObject.position.z += sstepZ;
+
+                    // Face direction of movement
+                    var sTargetAngle = Math.atan2(sdx, sdz);
+                    // Smooth rotation
+                    var sRotDiff = sTargetAngle - steeveCurrentRotation;
+                    while (sRotDiff > Math.PI) sRotDiff -= Math.PI * 2;
+                    while (sRotDiff < -Math.PI) sRotDiff += Math.PI * 2;
+                    steeveCurrentRotation += sRotDiff * 0.1;
+                    steeveObject.rotation.y = steeveCurrentRotation;
+
+                    // Walking bob — sway side to side + slight up/down
+                    steeveWalkPhase += 0.15;
+                    steeveObject.rotation.z = Math.sin(steeveWalkPhase) * 0.06;
+                    steeveObject.position.y = steeveBaseY + Math.abs(Math.sin(steeveWalkPhase)) * 0.03;
+                }
+            } else {
+                // Idle — breathing
+                steeveWalkPhase += 0.02;
+                steeveObject.position.y = steeveBaseY + Math.sin(steeveWalkPhase) * 0.012;
+            }
+
+            // Sync label and mumble sprite position with Steve
+            if (steeveLabel) {
+                steeveLabel.position.x = steeveObject.position.x;
+                steeveLabel.position.z = steeveObject.position.z;
+            }
+            if (steeveMumbleSpriteRef) {
+                steeveMumbleSpriteRef.position.x = steeveObject.position.x;
+                steeveMumbleSpriteRef.position.z = steeveObject.position.z;
             }
         }
 
