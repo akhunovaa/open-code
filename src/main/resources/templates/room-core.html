@@ -438,6 +438,8 @@
                         }
                     });
 
+                    object.position.x = -2.49;
+                    object.position.z = 3.51;
                     scene.add(object);
                     loading.style.display = 'none';
 
@@ -449,7 +451,8 @@
 
                     // ---- Second room copy to the left ----
                     var room2 = object.clone();
-                    room2.position.x = -4.0;
+                    room2.position.x = -6.01;
+                    room2.position.z = -0.01;
                     room2.traverse(function (child) {
                         if (child.isMesh) {
                             if (child.material && child.material.name) {
@@ -462,7 +465,8 @@
 
                     // ---- Third room copy to the right ----
                     var room3 = object.clone();
-                    room3.position.x = 4.0;
+                    room3.position.x = 2.49;
+                    room3.position.z = 3.51;
                     room3.traverse(function (child) {
                         if (child.isMesh) {
                             if (child.material && child.material.name) {
@@ -475,7 +479,8 @@
 
                     // ---- Fourth room copy further right (Niyaz) ----
                     var room4 = object.clone();
-                    room4.position.x = 8.0;
+                    room4.position.x = 6.01;
+                    room4.position.z = -0.01;
                     room4.traverse(function (child) {
                         if (child.isMesh) {
                             if (child.material && child.material.name) {

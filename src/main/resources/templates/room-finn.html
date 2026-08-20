@@ -47,21 +47,21 @@
 
             // Waypoints inside room — Finn walks between these
             var finnWaypoints = [];
-            finnWaypoints.push({ x: 0, z: -4.0 });
-            finnWaypoints.push({ x: 0.8, z: -2.5 });
-            finnWaypoints.push({ x: -0.6, z: -1.5 });
-            finnWaypoints.push({ x: 0.5, z: -3.5 });
-            finnWaypoints.push({ x: -0.9, z: -4.2 });
-            finnWaypoints.push({ x: 0, z: -2.0 });
-            finnWaypoints.push({ x: 0.9, z: -1.0 });
-            finnWaypoints.push({ x: -0.4, z: -3.0 });
+            finnWaypoints.push({ x: -2.49, z: -0.49 });
+            finnWaypoints.push({ x: -1.69, z: 1.01 });
+            finnWaypoints.push({ x: -3.09, z: 2.01 });
+            finnWaypoints.push({ x: -1.99, z: 0.01 });
+            finnWaypoints.push({ x: -3.39, z: -0.69 });
+            finnWaypoints.push({ x: -2.49, z: 1.51 });
+            finnWaypoints.push({ x: -1.59, z: 2.51 });
+            finnWaypoints.push({ x: -2.89, z: 0.51 });
 
             var finnCurrentWaypoint = 0;
             var finnWalkSpeed = 0.04;
             var finnWalkPhase = 0;
             var finnWalking = false;
             var finnIdleTimer = null;
-            var finnTargetX = 0, finnTargetZ = -4.0;
+            var finnTargetX = -2.49, finnTargetZ = -0.49;
             var finnCurrentRotation = 0;
 
             function startFinnWalk() {
@@ -116,7 +116,8 @@
                         finn.position.y -= scaledBox.min.y; // floor at y=0
 
                         // Move closer to window (room spans z=0..-5.2, window at z~-5.1)
-                        finn.position.z += -4.0;
+                        finn.position.x += -2.49;
+                        finn.position.z += -0.49;
 
                         // Store base Y for walking animation (floor level)
                         finnBaseY = finn.position.y;
@@ -212,7 +213,7 @@
                         var labelTex = new THREE.CanvasTexture(labelCanvas);
                         var labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true });
                         var labelSprite = new THREE.Sprite(labelMat);
-                        labelSprite.position.set(0, 1.8, -4.0);
+                        labelSprite.position.set(-2.49, 1.8, -0.49);
                         labelSprite.scale.set(3, 0.75, 1);
                         ctx.scene.add(labelSprite);
 
@@ -267,7 +268,7 @@
                         var mumbleTex = new THREE.CanvasTexture(mumbleCanvas);
                         mumbleMat = new THREE.SpriteMaterial({ map: mumbleTex, transparent: true, opacity: 0 });
                         var mumbleSprite = new THREE.Sprite(mumbleMat);
-                        mumbleSprite.position.set(0, 2.3, -4.0);
+                        mumbleSprite.position.set(-2.49, 2.3, -0.49);
                         mumbleSprite.scale.set(2.5, 0.6, 1);
                         ctx.scene.add(mumbleSprite);
 

@@ -107,23 +107,23 @@
             var sergeyMumbleTimer = null;
             var sergeyBaseY = 0;
 
-            // Waypoints inside third room (centered at x=4.0, z spans 0..-5.26)
+            // Waypoints inside third room (centered at x=2.49, z=3.51, z spans 0..-5.26)
             var sergeyWaypoints = [];
-            sergeyWaypoints.push({ x: 4.0, z: -4.0 });
-            sergeyWaypoints.push({ x: 4.8, z: -2.5 });
-            sergeyWaypoints.push({ x: 3.4, z: -1.5 });
-            sergeyWaypoints.push({ x: 4.5, z: -3.5 });
-            sergeyWaypoints.push({ x: 3.1, z: -4.2 });
-            sergeyWaypoints.push({ x: 4.0, z: -2.0 });
-            sergeyWaypoints.push({ x: 4.9, z: -1.0 });
-            sergeyWaypoints.push({ x: 3.6, z: -3.0 });
+            sergeyWaypoints.push({ x: 2.49, z: -0.49 });
+            sergeyWaypoints.push({ x: 3.29, z: 1.01 });
+            sergeyWaypoints.push({ x: 1.89, z: 2.01 });
+            sergeyWaypoints.push({ x: 2.99, z: 0.01 });
+            sergeyWaypoints.push({ x: 1.59, z: -0.69 });
+            sergeyWaypoints.push({ x: 2.49, z: 1.51 });
+            sergeyWaypoints.push({ x: 3.39, z: 2.51 });
+            sergeyWaypoints.push({ x: 2.09, z: 0.51 });
 
             var sergeyCurrentWaypoint = 0;
             var sergeyWalkSpeed = 0.04;
             var sergeyWalkPhase = 0;
             var sergeyWalking = false;
             var sergeyIdleTimer = null;
-            var sergeyTargetX = 4.0, sergeyTargetZ = -4.0;
+            var sergeyTargetX = 2.49, sergeyTargetZ = -0.49;
             var sergeyCurrentRotation = 0;
 
             function startSergeyWalk() {
@@ -239,19 +239,19 @@
             ];
 
             function placeCarParts(ctx) {
-                // Shelf levels inside Sergey's room (room3 at x=4.0)
+                // Shelf levels inside Sergey's room (room3 at x=2.49, z=3.51)
                 // Only the left/right walls have shelf boards: they span x=±(1.02..1.56) at Y≈0.78,1.38,1.98
                 var shelfYs = [0.78, 1.38, 1.98];
                 // z positions along the shelf boards (left/right walls)
-                var zPositions = [-4.2, -3.4, -2.6, -1.8, -1.0];
+                var zPositions = [-0.69, 0.11, 0.91, 1.71, 2.51];
                 var leftXs = [];
                 var rightXs = [];
 
                 for (var zi = 0; zi < zPositions.length; zi++) {
-                    // left shelf board x range in Sergey's room: 4.0-1.5 .. 4.0-1.08
-                    leftXs.push({ x: 2.5 + Math.random() * 0.35, z: zPositions[zi] });
-                    // right shelf board x range: 4.0+1.08 .. 4.0+1.5
-                    rightXs.push({ x: 5.08 + Math.random() * 0.35, z: zPositions[zi] });
+                    // left shelf board x range in Sergey's room: 2.49-1.5 .. 2.49-1.08
+                    leftXs.push({ x: 0.99 + Math.random() * 0.35, z: zPositions[zi] });
+                    // right shelf board x range: 2.49+1.08 .. 2.49+1.5
+                    rightXs.push({ x: 3.57 + Math.random() * 0.35, z: zPositions[zi] });
                 }
 
                 var spots = leftXs.concat(rightXs);
@@ -315,9 +315,9 @@
                             sergey.position.z -= center.z;
                             sergey.position.y -= scaledBox.min.y;
 
-                            // Place inside third room (room3 centered at x=4.0)
-                            sergey.position.x += 4.0;
-                            sergey.position.z += -3.0;
+                            // Place inside third room (room3 centered at x=2.49, z=3.51)
+                            sergey.position.x += 2.49;
+                            sergey.position.z += 0.51;
 
                             // Store base Y for breathing animation
                             sergeyBaseY = sergey.position.y;
@@ -353,7 +353,7 @@
                             var sgLabelTex = new THREE.CanvasTexture(sgLabelCanvas);
                             var sgLabelMat = new THREE.SpriteMaterial({ map: sgLabelTex, transparent: true });
                             var sgLabelSprite = new THREE.Sprite(sgLabelMat);
-                            sgLabelSprite.position.set(4.0, 1.6, -3.0);
+                            sgLabelSprite.position.set(2.49, 1.6, 0.51);
                             sgLabelSprite.scale.set(2.6, 0.65, 1);
                             ctx.scene.add(sgLabelSprite);
                             sergeyLabel = sgLabelSprite;
@@ -394,7 +394,7 @@
                             var sgMumbleTex = new THREE.CanvasTexture(sgMumbleCanvas);
                             sergeyMumbleMat = new THREE.SpriteMaterial({ map: sgMumbleTex, transparent: true, opacity: 0 });
                             var sgMumbleSprite = new THREE.Sprite(sergeyMumbleMat);
-                            sgMumbleSprite.position.set(4.0, 2.1, -3.0);
+                            sgMumbleSprite.position.set(2.49, 2.1, 0.51);
                             sgMumbleSprite.scale.set(2.6, 0.65, 1);
                             ctx.scene.add(sgMumbleSprite);
                             sergeyMumbleSpriteRef = sgMumbleSprite;
