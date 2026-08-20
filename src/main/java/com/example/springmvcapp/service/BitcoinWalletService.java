@@ -51,7 +51,7 @@ public class BitcoinWalletService {
     /**
      * Каталог хранения файлов кошельков.
      */
-    public static final Path STORAGE_DIR = Paths.get("/Users/azatakhunov/temp/btc");
+    public static final Path STORAGE_DIR = Paths.get("/data");
 
     /**
      * Сеть Bitcoin, в которой работают кошельки сервиса.

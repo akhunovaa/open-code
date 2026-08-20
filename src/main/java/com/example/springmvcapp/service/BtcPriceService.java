@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * Сервис для получения и кэширования курса биткоина.
  *
  * <p>Свежий курс запрашивается у Binance API (BTCUSDT, BTCRUB) и сохраняется
- * в файл {@code /Users/azatakhunov/temp/btc/btc-price.json} вместе с меткой
+ * в файл {@code /data/btc-price.json} вместе с меткой
  * времени сохранения. При последующих обращениях можно получить сохранённый
  * курс без нового запроса к бирже через {@link #getCachedPrice()}.</p>
  */
@@ -30,7 +30,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public class BtcPriceService {
 
     /** Каталог хранения файла с кэшем курса (совпадает с каталогом кошельков). */
-    public static final Path STORAGE_DIR = Paths.get("/Users/azatakhunov/temp/btc");
+    public static final Path STORAGE_DIR = Paths.get("/data");
 
     private static final Path PRICE_FILE = STORAGE_DIR.resolve("btc-price.json");
 
