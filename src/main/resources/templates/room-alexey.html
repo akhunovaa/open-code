@@ -29,6 +29,42 @@
         }
         #steeve-dialog .steeve-price-btn:hover { background: rgba(21,101,192,0.7); color: #fff; }
         #steeve-dialog .steeve-price-btn:disabled { opacity: 0.6; cursor: wait; }
+        #steeve-dialog .steeve-wallet-box {
+            background: rgba(245,181,59,0.08); border: 1px solid rgba(245,181,59,0.3);
+            border-radius: 8px; padding: 12px; margin-bottom: 12px; text-align: left;
+        }
+        #steeve-dialog .steeve-wallet-box .label { color: #f5b53b; font-size: 13px; margin-bottom: 6px; }
+        #steeve-dialog .steeve-wallet-box .mono { color: #8ef; font-size: 13px; word-break: break-all; }
+        #steeve-dialog .steeve-wallet-box .dim { color: #aaa; font-size: 12px; word-break: break-all; }
+
+        #steeve-info-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 40; display: none;
+            background: rgba(10,15,30,0.97); border: 1px solid rgba(245,181,59,0.5);
+            border-radius: 12px; padding: 24px; max-width: 460px; width: 90%;
+            text-align: center; pointer-events: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,.6);
+            opacity: 1; transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        #steeve-info-dialog.fade-out { opacity: 0; transform: translate(-50%,-40%); pointer-events: none; }
+        #steeve-info-dialog h2 { color: #f5b53b; font-size: 18px; margin-bottom: 12px; }
+        #steeve-info-dialog .steeve-info-content {
+            color: #ccc; font-size: 14px; line-height: 1.6; margin-bottom: 16px;
+            text-align: left; max-height: 280px; overflow-y: auto;
+        }
+        #steeve-info-dialog .steeve-info-dialog-x {
+            position: absolute; top: 10px; right: 14px;
+            background: none; border: none; color: #5b9bf5; font-size: 22px;
+            line-height: 1; cursor: pointer; pointer-events: auto;
+            padding: 4px 8px; border-radius: 6px; transition: all 0.15s;
+        }
+        #steeve-info-dialog .steeve-info-dialog-x:hover { color: #fff; background: rgba(21,101,192,0.7); }
+        #steeve-info-dialog .steeve-close {
+            background: rgba(21,101,192,0.5); border: 1px solid rgba(91,155,245,0.6);
+            color: #5b9bf5; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s;
+        }
+        #steeve-info-dialog .steeve-close:hover { background: rgba(21,101,192,0.8); color: #fff; }
     </style>
 
     <div id="steeve-dialog">
@@ -36,10 +72,31 @@
         <p id="steeve-dialog-text"><b>Супер Пупер Биток Трейдер</b><br><br>
         — Привет! Я Алексей. В трейдинге я человек опытный и мечтаю научить каждого.<br><br>
         — Расскажу многое полезное о реализации криптовалют, в особенности биткоина. Спрашивай когда захочешь!</p>
+        <div id="steeve-wallet-section" style="display:none;">
+            <div class="steeve-wallet-box">
+                <div class="label">👛 Мой кошелёк BTC</div>
+                <div class="dim" id="steeve-wallet-id"></div>
+                <div class="mono" id="steeve-wallet-address"></div>
+            </div>
+            <div style="margin-bottom: 8px;">
+                <button class="steeve-price-btn" id="steeve-new-address-btn" onclick="newSteeveAddress()">📮 Новый receive-адрес</button>
+            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <button class="steeve-price-btn" style="flex: 1;" onclick="showSteeveBalance()">💰 Доступный баланс</button>
+                <button class="steeve-price-btn" style="flex: 1;" onclick="showSteeveTransactions()">🧾 Транзакции</button>
+            </div>
+        </div>
         <div style="margin-bottom: 12px;">
-            <button class="steeve-price-btn" id="btc-price-btn" onclick="askBtcPrice()">💰 Сколько стоит биткоин?</button>
+            <button class="steeve-price-btn" id="steeve-create-wallet-btn" onclick="createSteeveWallet()">🔑 Завести кошелёк</button>
         </div>
         <button class="steeve-close" onclick="closeSteeveDialog()">Закрыть</button>
+    </div>
+
+    <div id="steeve-info-dialog">
+        <button class="steeve-info-dialog-x" onclick="closeSteeveInfoDialog()" aria-label="Закрыть">✖</button>
+        <h2>Кошелёк — Алексей Дементьев</h2>
+        <div class="steeve-info-content" id="steeve-info-content"></div>
+        <button class="steeve-close" onclick="closeSteeveInfoDialog()">Закрыть</button>
     </div>
 </th:block>
 
@@ -95,12 +152,173 @@
                 var dlg = document.getElementById('steeve-dialog');
                 dlg.classList.remove('fade-out');
                 dlg.style.display = 'block';
+                refreshSteeveWallet();
             }
 
             window.closeSteeveDialog = function () {
                 var dlg = document.getElementById('steeve-dialog');
                 dlg.classList.add('fade-out');
                 setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+            };
+
+            // ---- Wallet for purchases at Alexey's shop ----
+            // Each visitor has a unique id stored in localStorage; the wallet file is
+            // kept on the server at /Users/azatakhunov/temp/btc/{userId}.wallet
+            function steeveUserId() {
+                var id = localStorage.getItem('alexey-btc-user-id');
+                if (!id) {
+                    id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                        var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                        return v.toString(16);
+                    });
+                    localStorage.setItem('alexey-btc-user-id', id);
+                }
+                return id;
+            }
+
+            function steeveWalletRequest(path, opts) {
+                return fetch('/api/btc/wallet/' + encodeURIComponent(steeveUserId()) + path, opts);
+            }
+
+            function showSteeveWalletBox(info) {
+                var section = document.getElementById('steeve-wallet-section');
+                var createBtn = document.getElementById('steeve-create-wallet-btn');
+                if (!section) return;
+                document.getElementById('steeve-wallet-id').textContent = 'ID: ' + info.id;
+                document.getElementById('steeve-wallet-address').textContent = 'Адрес: ' + info.address;
+                section.style.display = 'block';
+                if (createBtn) createBtn.style.display = 'none';
+            }
+
+            function refreshSteeveWallet() {
+                var section = document.getElementById('steeve-wallet-section');
+                if (!section) return;
+                if (!localStorage.getItem('alexey-btc-user-id')) return;
+                steeveWalletRequest('')
+                    .then(function (r) {
+                        if (r.ok) return r.json();
+                        throw new Error('HTTP ' + r.status);
+                    })
+                    .then(showSteeveWalletBox)
+                    .catch(function () { /* wallet not created yet — ignore */ });
+            }
+
+            window.createSteeveWallet = function () {
+                var btn = document.getElementById('steeve-create-wallet-btn');
+                var textEl = document.getElementById('steeve-dialog-text');
+                if (!btn || !textEl) return;
+                btn.disabled = true;
+                btn.textContent = '⏳ Завожу кошелёк...';
+                textEl.innerHTML = '<b>Супер Пупер Биток Трейдер</b><br><br>' +
+                    '— Секунду, заведу тебе кошелёк...<br><br>' +
+                    '— Это необходимо, чтобы оплачивать покупки в моей лавке.';
+
+                steeveWalletRequest('', { method: 'POST' })
+                    .then(function (r) {
+                        if (r.ok) return r.json();
+                        return r.json().then(function (e) { throw new Error(e.error || 'HTTP ' + r.status); });
+                    })
+                    .then(function (info) {
+                        textEl.innerHTML = '<b>Супер Пупер Биток Трейдер</b><br><br>' +
+                            '— Готово! Кошелёк заведён под твоим идентификатором. Он нужен для покупок в моей лавке.<br><br>' +
+                            '— Внизу можно посмотреть баланс, транзакции и создать новый receive-адрес.';
+                        showSteeveWalletBox(info);
+                    })
+                    .catch(function (err) {
+                        textEl.innerHTML = '<b>Супер Пупер Биток Трейдер</b><br><br>' +
+                            '— Ой, не вышло завести кошелёк: ' + err.message + '. Попробуй ещё раз.';
+                    })
+                    .finally(function () {
+                        btn.disabled = false;
+                        btn.textContent = '🔑 Завести кошелёк';
+                    });
+            };
+
+            window.newSteeveAddress = function () {
+                var btn = document.getElementById('steeve-new-address-btn');
+                var addrEl = document.getElementById('steeve-wallet-address');
+                if (!btn || !addrEl) return;
+                btn.disabled = true;
+                btn.textContent = '⏳ Генерирую адрес...';
+                steeveWalletRequest('/address', { method: 'POST' })
+                    .then(function (r) {
+                        if (r.ok) return r.json();
+                        return r.json().then(function (e) { throw new Error(e.error || 'HTTP ' + r.status); });
+                    })
+                    .then(function (data) {
+                        addrEl.textContent = 'Адрес: ' + data.address;
+                    })
+                    .catch(function (err) {
+                        addrEl.textContent = 'Ошибка: ' + err.message;
+                    })
+                    .finally(function () {
+                        btn.disabled = false;
+                        btn.textContent = '📮 Новый receive-адрес';
+                    });
+            };
+
+            function openSteeveInfo(content) {
+                var dlg = document.getElementById('steeve-info-dialog');
+                if (!dlg) return;
+                document.getElementById('steeve-info-content').innerHTML = content;
+                dlg.classList.remove('fade-out');
+                dlg.style.display = 'block';
+            }
+
+            window.closeSteeveInfoDialog = function () {
+                var dlg = document.getElementById('steeve-info-dialog');
+                if (!dlg) return;
+                dlg.classList.add('fade-out');
+                setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+            };
+
+            window.showSteeveBalance = function () {
+                openSteeveInfo('<i>Загружаю баланс...</i>');
+                steeveWalletRequest('/balance')
+                    .then(function (r) {
+                        if (r.ok) return r.json();
+                        return r.json().then(function (e) { throw new Error(e.error || 'HTTP ' + r.status); });
+                    })
+                    .then(function (data) {
+                        var sat = Number(data.balanceSat);
+                        openSteeveInfo(
+                            '<div style="color:#f5b53b; font-size:14px; margin-bottom:8px;">💰 Доступный баланс</div>' +
+                            '<div style="font-size:26px; color:#fff; text-align:center;">' +
+                            sat.toLocaleString('ru-RU') + ' сатоши</div>' +
+                            '<div style="color:#8ef; text-align:center; margin-top:4px;">≈ ' +
+                            (sat / 100000000).toFixed(8) + ' BTC</div>');
+                    })
+                    .catch(function (err) {
+                        openSteeveInfo('Ошибка: ' + err.message);
+                    });
+            };
+
+            window.showSteeveTransactions = function () {
+                openSteeveInfo('<i>Загружаю транзакции...</i>');
+                steeveWalletRequest('/transactions')
+                    .then(function (r) {
+                        if (r.ok) return r.json();
+                        return r.json().then(function (e) { throw new Error(e.error || 'HTTP ' + r.status); });
+                    })
+                    .then(function (txs) {
+                        if (!txs || txs.length === 0) {
+                            openSteeveInfo('<div style="text-align:center;">Транзакций пока нет.</div>');
+                            return;
+                        }
+                        var html = '<div style="color:#f5b53b; font-size:14px; margin-bottom:8px;">🧾 Транзакции (' +
+                            txs.length + ')</div>';
+                        txs.forEach(function (tx) {
+                            html += '<div style="border-top:1px solid rgba(245,181,59,0.2); padding:8px 0;">' +
+                                '<div style="word-break:break-all; font-size:12px; color:#8ef;">' + tx.txId + '</div>' +
+                                '<div style="margin-top:2px;">Изменение: ' +
+                                Number(tx.valueSat).toLocaleString('ru-RU') + ' сатоши' +
+                                (tx.feeSat != null ? ' · комиссия: ' + tx.feeSat + ' сатоши' : '') + '</div></div>';
+                        });
+                        openSteeveInfo(html);
+                    })
+                    .catch(function (err) {
+                        openSteeveInfo('Ошибка: ' + err.message);
+                    });
             };
 
             window.askBtcPrice = function () {

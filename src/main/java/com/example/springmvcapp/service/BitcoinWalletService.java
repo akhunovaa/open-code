@@ -121,8 +121,23 @@ public class BitcoinWalletService {
      * @throws UnreadableWalletException если созданный кошелёк не удалось загрузить
      */
     public String createWallet() throws IOException, UnreadableWalletException {
+        return createWallet(UUID.randomUUID().toString());
+    }
+
+    /**
+     * Создаёт новый кошелёк с указанным идентификатором.
+     *
+     * <p>Идентификатор используется как имя файла кошелька, поэтому он должен быть
+     * уникальным в рамках {@link #STORAGE_DIR}. Если кошелёк с таким идентификатором
+     * уже существует, он не пересоздаётся.</p>
+     *
+     * @param id идентификатор кошелька (имя файла без расширения)
+     * @return идентификатор созданного кошелька
+     * @throws IOException               если не удалось создать каталог или сохранить файл
+     * @throws UnreadableWalletException если созданный кошелёк не удалось загрузить
+     */
+    public String createWallet(String id) throws IOException, UnreadableWalletException {
         Files.createDirectories(STORAGE_DIR);
-        String id = UUID.randomUUID().toString();
         loadOrCreate(id).saveToFile(fileFor(id));
         return id;
     }

@@ -48,6 +48,19 @@ class BitcoinWalletControllerTest {
     }
 
     @Test
+    void createWithId_returnsWalletInfo() throws Exception {
+        when(walletService.createWallet("user-42")).thenReturn("user-42");
+        when(walletService.getWallet("user-42")).thenReturn(new WalletInfo(
+                "user-42", "regtest", "abandon abandon", 0L, "bcrt1quser",
+                List.of("bcrt1quser"), 0));
+
+        mockMvc.perform(post("/api/btc/wallet/user-42"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("user-42"))
+                .andExpect(jsonPath("$.address").value("bcrt1quser"));
+    }
+
+    @Test
     void balance_returnsSatoshis() throws Exception {
         when(walletService.balance("wallet-1")).thenReturn(123456L);
 

@@ -86,6 +86,24 @@ public class BitcoinWalletController {
     }
 
     /**
+     * Создаёт новый детерминированный кошелёк с указанным идентификатором.
+     *
+     * <p>Идентификатор задаётся клиентом и используется как имя файла кошелька.
+     * Это позволяет, например, хранить кошелёк под идентификатором конкретного
+     * пользователя в каталоге {@code /Users/azatakhunov/temp/btc}. Если кошелёк
+     * с таким идентификатором уже существует, возвращается его текущее состояние.</p>
+     *
+     * @param id идентификатор кошелька (имя файла без расширения)
+     * @return {@link WalletInfo} с данными созданного или существующего кошелька
+     * @throws IOException               если не удалось создать каталог или сохранить кошелёк
+     * @throws UnreadableWalletException если кошелёк не удалось загрузить
+     */
+    @PostMapping("/api/btc/wallet/{id}")
+    public WalletInfo create(@PathVariable String id) throws IOException, UnreadableWalletException {
+        return walletService.getWallet(walletService.createWallet(id));
+    }
+
+    /**
      * Возвращает информацию о кошельке по его идентификатору.
      *
      * <p>Если файл кошелька существует, он загружается с диска; в противном случае

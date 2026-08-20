@@ -164,19 +164,37 @@
         #niyaz-cigar-list .cigar-item .cigar-buy.sold { border-color: #78c878; color: #78c878; }
 
         #niyaz-balance {
-            position: fixed; left: 16px; bottom: 18px; z-index: 30;
+            position: fixed; left: 16px; top: 16px; z-index: 30;
             background: rgba(20,60,30,0.92); border: 1px solid rgba(120,220,120,0.5);
-            border-radius: 8px; padding: 10px 16px; color: #7ee07e; font-size: 14px;
+            border-radius: 8px; padding: 10px 32px 10px 16px; color: #7ee07e; font-size: 14px;
             pointer-events: none; display: none; min-width: 220px;
             box-shadow: 0 4px 20px rgba(0,0,0,.5);
         }
         #buyer-balance {
-            position: fixed; right: 16px; bottom: 18px; z-index: 30;
+            position: fixed; right: 16px; top: 16px; z-index: 30;
             background: rgba(70,20,20,0.92); border: 1px solid rgba(255,107,107,0.5);
-            border-radius: 8px; padding: 10px 16px; color: #ff6b6b; font-size: 14px;
+            border-radius: 8px; padding: 10px 32px 10px 16px; color: #ff6b6b; font-size: 14px;
             pointer-events: none; display: block; min-width: 220px; text-align: right;
             box-shadow: 0 4px 20px rgba(0,0,0,.5);
         }
+        #balance-test-note {
+            position: fixed; top: 62px; left: 50%; transform: translateX(-50%); z-index: 30;
+            background: rgba(10,15,30,0.85); border: 1px solid rgba(245,181,59,0.4);
+            border-radius: 8px; padding: 6px 28px 6px 14px; color: #f5b53b; font-size: 12px;
+            pointer-events: none; display: block; text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,.5);
+        }
+        #niyaz-balance .balance-close-x,
+        #buyer-balance .balance-close-x,
+        #balance-test-note .balance-close-x {
+            position: absolute; top: 4px; right: 6px;
+            background: none; border: none; color: #aaa; font-size: 16px;
+            line-height: 1; cursor: pointer; pointer-events: auto;
+            padding: 2px 6px; border-radius: 6px; transition: all 0.15s;
+        }
+        #niyaz-balance .balance-close-x:hover { color: #fff; background: rgba(120,220,120,0.4); }
+        #buyer-balance .balance-close-x:hover { color: #fff; background: rgba(255,107,107,0.4); }
+        #balance-test-note .balance-close-x:hover { color: #fff; background: rgba(245,181,59,0.4); }
         .balance-gain { animation: balancePulse 1s ease; }
         .balance-loss { animation: balancePulseRed 1s ease; }
         @keyframes balancePulse {
@@ -229,8 +247,15 @@
         <button class="cigar-close" onclick="closeNiyazCigarDialog()">Закрыть</button>
     </div>
 
-    <div id="niyaz-balance">💰 <b>Нияз Бабай:</b> <span id="niyaz-balance-value">0</span> ₽</div>
-    <div id="buyer-balance">💰 <b>Ваш баланс:</b> <span id="buyer-balance-value">100000</span> ₽</div>
+    <div id="balance-test-note">⚙️ Балансы фиктивные и не являются настоящими — только для тестирования
+        <button class="balance-close-x" onclick="closeBalanceBox('balance-test-note')" aria-label="Закрыть">✖</button>
+    </div>
+    <div id="niyaz-balance">💰 <b>Нияз Бабай:</b> <span id="niyaz-balance-value">0</span> ₽
+        <button class="balance-close-x" onclick="closeBalanceBox('niyaz-balance')" aria-label="Закрыть">✖</button>
+    </div>
+    <div id="buyer-balance">💰 <b>Ваш баланс:</b> <span id="buyer-balance-value">100000</span> ₽
+        <button class="balance-close-x" onclick="closeBalanceBox('buyer-balance')" aria-label="Закрыть">✖</button>
+    </div>
 </th:block>
 
 <th:block th:fragment="logic">
@@ -291,6 +316,11 @@
                 var dlg = document.getElementById('niyaz-dialog');
                 dlg.classList.add('fade-out');
                 setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+            };
+
+            window.closeBalanceBox = function (id) {
+                var el = document.getElementById(id);
+                if (el) el.style.display = 'none';
             };
 
             function showNiyazPartDialog(mesh) {
