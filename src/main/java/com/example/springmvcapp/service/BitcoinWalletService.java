@@ -168,8 +168,9 @@ public class BitcoinWalletService {
      * Возвращает полную информацию о кошельке.
      *
      * <p>Помимо идентификатора и сети возвращаются мнемоническая фраза (BIP39),
-     * доступный баланс в сатоши, текущий receive-адрес, список всех выданных
-     * адресов и количество транзакций. Вызов также выдаёт свежий адрес кошелька.</p>
+     * доступный баланс в сатоши, последний выданный receive-адрес, список всех
+     * выданных адресов и количество транзакций. Метод не генерирует новые адреса —
+     * для этого используется {@link #freshAddress(String)}.</p>
      *
      * @param id идентификатор кошелька
      * @return {@link WalletInfo} с данными кошелька
@@ -178,16 +179,16 @@ public class BitcoinWalletService {
      */
     public WalletInfo getWallet(String id) throws IOException, UnreadableWalletException {
         Wallet wallet = loadOrCreate(id);
-        String fresh = wallet.freshReceiveAddress().toString();
         List<String> addresses = wallet.getIssuedReceiveAddresses().stream()
                 .map(Address::toString)
                 .toList();
+        String current = addresses.isEmpty() ? null : addresses.get(addresses.size() - 1);
         return new WalletInfo(
                 id,
                 NETWORK.toString(),
                 wallet.getKeyChainSeed() != null ? wallet.getKeyChainSeed().getMnemonicString() : null,
                 wallet.getBalance(BalanceType.AVAILABLE).toSat(),
-                fresh,
+                current,
                 addresses,
                 wallet.getTransactionsByTime().size());
     }

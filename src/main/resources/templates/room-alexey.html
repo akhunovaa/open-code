@@ -110,7 +110,7 @@
                 <div class="mono" id="steeve-wallet-address"></div>
             </div>
             <div style="margin-bottom: 8px;">
-                <button class="steeve-price-btn" id="steeve-new-address-btn" onclick="newSteeveAddress()">📮 Новый receive-адрес</button>
+                <button class="steeve-price-btn" id="steeve-new-address-btn" onclick="newSteeveAddress()">📮 Создать новый адрес</button>
             </div>
             <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                 <button class="steeve-price-btn" style="flex: 1;" onclick="showSteeveBalance()">💰 Доступный баланс</button>
@@ -255,6 +255,11 @@
             }
 
             function setSteeveAddress(addrEl, address) {
+                if (!address) {
+                    addrEl.setAttribute('data-address', '');
+                    addrEl.innerHTML = 'Адрес: <span style="color:#aaa">нет адреса — нажмите «Создать новый адрес»</span>';
+                    return;
+                }
                 addrEl.setAttribute('data-address', address);
                 addrEl.innerHTML = 'Адрес: <span class="addr-link">' + address +
                     '</span><span class="copy-hint">📋 нажми, чтобы скопировать</span>';
@@ -335,7 +340,7 @@
                     })
                     .finally(function () {
                         btn.disabled = false;
-                        btn.textContent = '📮 Новый receive-адрес';
+                        btn.textContent = '📮 Создать новый адрес';
                     });
             };
 
