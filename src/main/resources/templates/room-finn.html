@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="dialog">
+    <style>
+        #finn-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 30; display: none;
+            background: rgba(10,15,30,0.97); border: 1px solid rgba(91,155,245,0.5);
+            border-radius: 12px; padding: 24px; max-width: 380px; width: 90%;
+            text-align: center; pointer-events: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,.6);
+            opacity: 1; transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        #finn-dialog.fade-out { opacity: 0; transform: translate(-50%,-40%); pointer-events: none; }
+        #finn-dialog h2 { color: #5b9bf5; font-size: 18px; margin-bottom: 12px; }
+        #finn-dialog p { color: #ccc; font-size: 15px; line-height: 1.6; margin-bottom: 16px; }
+        #finn-dialog .finn-close {
+            background: rgba(21,101,192,0.5); border: 1px solid rgba(91,155,245,0.6);
+            color: #5b9bf5; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s;
+        }
+        #finn-dialog .finn-close:hover { background: rgba(21,101,192,0.8); color: #fff; }
+    </style>
+
+    <div id="finn-dialog">
+        <h2>Паша Еремеев</h2>
+        <p>— Привет! Я Паша. Но сейчас я не хочу разговаривать.<br><br>— Оставь меня в покое, пожалуйста. Я хороший человек, но сегодня не мой день для общения.</p>
+        <button class="finn-close" onclick="closeFinnDialog()">Понятно, извини</button>
+    </div>
+</th:block>
+
+<th:block th:fragment="logic">
+    <script th:inline="none">
+        (function () {
+            // ============================================================
+            // ROOM 1 (center) — Finn "Паша Еремеев"
+            // ============================================================
+
+            var finnObject = null;
+            var finnLabel = null;
+            var mumbleSpriteRef = null;
+            var finnBaseY = 0;
+            var mumbleMat = null;
+            var mumbleOpacity = 0;
+            var mumbleTargetOpacity = 0;
+
+            // Waypoints inside room — Finn walks between these
+            var finnWaypoints = [];
+            finnWaypoints.push({ x: 0, z: -4.0 });
+            finnWaypoints.push({ x: 0.8, z: -2.5 });
+            finnWaypoints.push({ x: -0.6, z: -1.5 });
+            finnWaypoints.push({ x: 0.5, z: -3.5 });
+            finnWaypoints.push({ x: -0.9, z: -4.2 });
+            finnWaypoints.push({ x: 0, z: -2.0 });
+            finnWaypoints.push({ x: 0.9, z: -1.0 });
+            finnWaypoints.push({ x: -0.4, z: -3.0 });
+
+            var finnCurrentWaypoint = 0;
+            var finnWalkSpeed = 0.04;
+            var finnWalkPhase = 0;
+            var finnWalking = false;
+            var finnIdleTimer = null;
+            var finnTargetX = 0, finnTargetZ = -4.0;
+            var finnCurrentRotation = 0;
+
+            function startFinnWalk() {
+                finnCurrentWaypoint = (finnCurrentWaypoint + 1) % finnWaypoints.length;
+                var wp = finnWaypoints[finnCurrentWaypoint];
+                finnTargetX = wp.x;
+                finnTargetZ = wp.z;
+                finnWalking = true;
+            }
+
+            function scheduleNextWalk() {
+                var delay = 4000 + Math.random() * 8000; // 4-12 sec idle
+                finnIdleTimer = setTimeout(startFinnWalk, delay);
+            }
+
+            var finnDialogTimer = null;
+
+            function showFinnDialog() {
+                var dlg = document.getElementById('finn-dialog');
+                dlg.classList.remove('fade-out');
+                dlg.style.display = 'block';
+                if (finnDialogTimer) clearTimeout(finnDialogTimer);
+                finnDialogTimer = setTimeout(function () { closeFinnDialog(); }, 4000);
+            }
+
+            window.closeFinnDialog = function () {
+                var dlg = document.getElementById('finn-dialog');
+                dlg.classList.add('fade-out');
+                setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+                if (finnDialogTimer) clearTimeout(finnDialogTimer);
+            };
+
+            window.Room3DComponents.push({
+                id: 'finn',
+                load: function (ctx) {
+                    // ---- Load Finn.obj (center of room) ----
+                    var finnLoader = new THREE.OBJLoader();
+                    finnLoader.setPath('/room/');
+                    finnLoader.load('finn.obj', function (finn) {
+                        // Finn coordinates are large (~86 units), scale down to fit room
+                        var box = new THREE.Box3().setFromObject(finn);
+                        var size = box.getSize(new THREE.Vector3());
+                        var maxDim = Math.max(size.x, size.y, size.z);
+                        var scale = 1.5 / maxDim; // ~1.5m tall
+                        finn.scale.setScalar(scale);
+
+                        // Reposition: center horizontally, place on floor
+                        var scaledBox = new THREE.Box3().setFromObject(finn);
+                        var center = scaledBox.getCenter(new THREE.Vector3());
+                        finn.position.x -= center.x;
+                        finn.position.z -= center.z;
+                        finn.position.y -= scaledBox.min.y; // floor at y=0
+
+                        // Move closer to window (room spans z=0..-5.2, window at z~-5.1)
+                        finn.position.z += -4.0;
+
+                        // Store base Y for walking animation (floor level)
+                        finnBaseY = finn.position.y;
+
+                        // Rotate to face the entrance (toward +z / door)
+                        finn.rotation.y = 0;
+
+                        // Apply multi-color materials by body part (vertex coloring by height)
+                        finn.traverse(function (child) {
+                            if (child.isMesh) {
+                                child.userData.isFinn = true;
+                                var geo = child.geometry;
+                                var positions = geo.attributes.position;
+                                var colors = new Float32Array(positions.count * 3);
+
+                                // Color palette
+                                var skin = [0.96, 0.78, 0.63];       // #f5c8a0 human skin
+                                var hat = [0.98, 0.98, 0.98];         // white hat
+                                var shirt = [0.35, 0.65, 0.85];       // blue/cyan shirt
+                                var pants = [0.15, 0.35, 0.75];       // blue pants
+                                var backpack = [0.2, 0.6, 0.25];      // green backpack (back)
+                                var shoes = [0.05, 0.05, 0.05];       // black shoes
+
+                                // Get unscaled Y range for zone mapping
+                                var minY = Infinity, maxY = -Infinity;
+                                for (var i = 0; i < positions.count; i++) {
+                                    var py = positions.getY(i);
+                                    if (py < minY) minY = py;
+                                    if (py > maxY) maxY = py;
+                                }
+                                var yRange = maxY - minY;
+
+                                for (var vi = 0; vi < positions.count; vi++) {
+                                    var y = positions.getY(vi);
+                                    var z = positions.getZ(vi);
+                                    var normY = (y - minY) / yRange; // 0=feet, 1=head
+
+                                    var c;
+                                    if (normY < 0.06) {
+                                        c = shoes;          // bottom ~6% = shoes
+                                    } else if (normY < 0.38) {
+                                        c = pants;          // 6-38% = pants
+                                    } else if (normY < 0.55) {
+                                        // 38-55% = shirt or backpack (back = -z in original)
+                                        if (z < -20) c = backpack;
+                                        else c = shirt;
+                                    } else if (normY < 0.82) {
+                                        // 55-82% = shirt upper / backpack upper back
+                                        if (z < -30 && normY < 0.70) c = backpack;
+                                        else c = shirt;
+                                    } else if (normY < 0.88) {
+                                        c = skin;           // 82-88% = face/neck
+                                    } else {
+                                        c = hat;            // 88-100% = hat
+                                    }
+
+                                    colors[vi * 3] = c[0];
+                                    colors[vi * 3 + 1] = c[1];
+                                    colors[vi * 3 + 2] = c[2];
+                                }
+
+                                geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+                                var mat = new THREE.MeshPhongMaterial({
+                                    vertexColors: true,
+                                    shininess: 15,
+                                    specular: 0x222222
+                                });
+                                mat.flatShading = true;
+                                mat.needsUpdate = true;
+                                child.material = mat;
+                                child.userData.isFinn = true;
+                                ctx.interactives.push(child);
+                            }
+                        });
+
+                        ctx.scene.add(finn);
+                        finnObject = finn;
+
+                        // ---- Text label above Finn ----
+                        var labelCanvas = document.createElement('canvas');
+                        labelCanvas.width = 1024;
+                        labelCanvas.height = 256;
+                        var lctx = labelCanvas.getContext('2d');
+                        lctx.font = 'bold 72px Arial';
+                        lctx.fillStyle = '#5b9bf5';
+                        lctx.textAlign = 'center';
+                        lctx.textBaseline = 'middle';
+                        lctx.fillText('Паша Еремеев', 512, 80);
+                        lctx.font = '48px Arial';
+                        lctx.fillStyle = '#66bb6a';
+                        lctx.fillText('хороший человек', 512, 180);
+                        var labelTex = new THREE.CanvasTexture(labelCanvas);
+                        var labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true });
+                        var labelSprite = new THREE.Sprite(labelMat);
+                        labelSprite.position.set(0, 1.8, -4.0);
+                        labelSprite.scale.set(3, 0.75, 1);
+                        ctx.scene.add(labelSprite);
+
+                        // ---- Mumbling text above Finn ----
+                        var mumbles = [
+                            'ммм... нет...',
+                            'оставьте меня...',
+                            'не хочу...',
+                            'холодно...',
+                            'скучно...',
+                            'ну зачем...',
+                            'опять...',
+                            'нет, нет, нет...',
+                            'mmm... no...',
+                            'тихо...',
+                            'идите...',
+                            'не сегодня...',
+                            'хррр...',
+                            'дай поспать...',
+                            'ну и ладно...',
+                            'никого не хочу видеть...',
+                            'тссс...',
+                            'снова тут?...',
+                            'ну и что...',
+                            'могу я побыть один?...',
+                            'покупай дешевле...',
+                            'продавай дороже...',
+                            'рынок упал опять...',
+                            'надо было покупать...',
+                            'продаю, продаю...',
+                            'рынок спит...',
+                            'купил бы, да денег нет...',
+                            'продать бы по高位...',
+                            'рынок волатильный...',
+                            'покупай на просадках...',
+                            'продавай на росте...',
+                            'рынок перегрет...',
+                            'купил на хаях опять...',
+                            'продаю в убыток...',
+                            'бычий рынок... может...',
+                            'медвежий рынок... точно...',
+                            'покупай и держи...',
+                            'продавай и беги...',
+                            'рынок непредсказуем...',
+                            'купил бы биток...'
+                        ];
+
+                        var mumbleCanvas = document.createElement('canvas');
+                        mumbleCanvas.width = 512;
+                        mumbleCanvas.height = 128;
+                        var mctx = mumbleCanvas.getContext('2d');
+                        var mumbleTex = new THREE.CanvasTexture(mumbleCanvas);
+                        mumbleMat = new THREE.SpriteMaterial({ map: mumbleTex, transparent: true, opacity: 0 });
+                        var mumbleSprite = new THREE.Sprite(mumbleMat);
+                        mumbleSprite.position.set(0, 2.3, -4.0);
+                        mumbleSprite.scale.set(2.5, 0.6, 1);
+                        ctx.scene.add(mumbleSprite);
+
+                        mumbleOpacity = 0;
+                        mumbleTargetOpacity = 0;
+                        var mumbleTimer = null;
+
+                        function showNextMumble() {
+                            var text = mumbles[Math.floor(Math.random() * mumbles.length)];
+                            mctx.clearRect(0, 0, 512, 128);
+                            mctx.font = 'italic 36px Arial';
+                            mctx.fillStyle = '#aaa';
+                            mctx.textAlign = 'center';
+                            mctx.textBaseline = 'middle';
+                            mctx.fillText(text, 256, 64);
+                            mumbleTex.needsUpdate = true;
+
+                            // Fade in
+                            mumbleTargetOpacity = 0.85;
+
+                            // After 3 seconds, fade out
+                            setTimeout(function () {
+                                mumbleTargetOpacity = 0;
+                            }, 3000);
+
+                            // Schedule next mumble in 5-20 seconds
+                            var nextDelay = 5000 + Math.random() * 15000;
+                            mumbleTimer = setTimeout(showNextMumble, nextDelay);
+                        }
+
+                        // Start first mumble after 3 seconds
+                        mumbleTimer = setTimeout(showNextMumble, 3000);
+
+                        // Store label/mumble references for position sync during walk
+                        finnLabel = labelSprite;
+                        mumbleSpriteRef = mumbleSprite;
+
+                        ctx.registerHit('isFinn', showFinnDialog);
+
+                        // Schedule first walk
+                        scheduleNextWalk();
+                    }, undefined, function (err) {
+                        console.error('Finn load error:', err);
+                    });
+                },
+                update: function () {
+                    // Animate mumble sprite fade
+                    if (mumbleMat && mumbleOpacity !== mumbleTargetOpacity) {
+                        mumbleOpacity += (mumbleTargetOpacity - mumbleOpacity) * 0.08;
+                        if (Math.abs(mumbleOpacity - mumbleTargetOpacity) < 0.01) mumbleOpacity = mumbleTargetOpacity;
+                        mumbleMat.opacity = mumbleOpacity;
+                    }
+
+                    // Finn walking animation
+                    if (finnObject) {
+                        if (finnWalking) {
+                            var dx = finnTargetX - finnObject.position.x;
+                            var dz = finnTargetZ - finnObject.position.z;
+                            var dist = Math.sqrt(dx * dx + dz * dz);
+
+                            if (dist < 0.05) {
+                                // Reached waypoint — stop and idle
+                                finnWalking = false;
+                                finnObject.rotation.z = 0; // straighten up
+                                scheduleNextWalk();
+                            } else {
+                                // Move toward target
+                                var stepX = (dx / dist) * finnWalkSpeed;
+                                var stepZ = (dz / dist) * finnWalkSpeed;
+                                finnObject.position.x += stepX;
+                                finnObject.position.z += stepZ;
+
+                                // Face direction of movement
+                                var targetAngle = Math.atan2(dx, dz);
+                                // Smooth rotation
+                                var rotDiff = targetAngle - finnCurrentRotation;
+                                while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+                                while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+                                finnCurrentRotation += rotDiff * 0.1;
+                                finnObject.rotation.y = finnCurrentRotation;
+
+                                // Walking bob — sway side to side + slight up/down
+                                finnWalkPhase += 0.15;
+                                finnObject.rotation.z = Math.sin(finnWalkPhase) * 0.06;
+                                finnObject.position.y = finnBaseY + Math.abs(Math.sin(finnWalkPhase)) * 0.03;
+                            }
+                        } else {
+                            // Idle — slight breathing
+                            finnWalkPhase += 0.02;
+                            finnObject.position.y = finnBaseY + Math.sin(finnWalkPhase) * 0.01;
+                        }
+
+                        // Sync label and mumble sprite position with Finn
+                        if (finnLabel) {
+                            finnLabel.position.x = finnObject.position.x;
+                            finnLabel.position.z = finnObject.position.z;
+                        }
+                        if (mumbleSpriteRef) {
+                            mumbleSpriteRef.position.x = finnObject.position.x;
+                            mumbleSpriteRef.position.z = finnObject.position.z;
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+</th:block>
+</body>
+</html>

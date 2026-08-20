@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="dialog">
+    <style>
+        #niyaz-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 30; display: none;
+            background: rgba(10,15,30,0.97); border: 1px solid rgba(91,155,245,0.5);
+            border-radius: 12px; padding: 24px; max-width: 420px; width: 90%;
+            max-height: 86vh;
+            display: none; flex-direction: column;
+            text-align: center; pointer-events: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,.6);
+            opacity: 1; transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        #niyaz-dialog.fade-out { opacity: 0; transform: translate(-50%,-40%); pointer-events: none; }
+        #niyaz-dialog h2 { color: #5b9bf5; font-size: 18px; margin-bottom: 12px; }
+        #niyaz-dialog p { color: #ccc; font-size: 15px; line-height: 1.6; margin-bottom: 16px; }
+        #niyaz-dialog .niyaz-dialog-x {
+            position: absolute; top: 10px; right: 14px;
+            background: none; border: none; color: #5b9bf5; font-size: 22px;
+            line-height: 1; cursor: pointer; pointer-events: auto;
+            padding: 4px 8px; border-radius: 6px; transition: all 0.15s;
+        }
+        #niyaz-dialog .niyaz-dialog-x:hover { color: #fff; background: rgba(21,101,192,0.7); }
+        #niyaz-dialog .niyaz-dialog-scroll {
+            flex: 1 1 auto; min-height: 0; overflow-y: auto;
+            padding-right: 6px; margin-bottom: 12px;
+        }
+        #niyaz-dialog .niyaz-dialog-scroll::-webkit-scrollbar { width: 6px; }
+        #niyaz-dialog .niyaz-dialog-scroll::-webkit-scrollbar-thumb { background: rgba(91,155,245,0.4); border-radius: 3px; }
+        #niyaz-dialog .niyaz-close {
+            flex-shrink: 0;
+            background: rgba(21,101,192,0.5); border: 1px solid rgba(91,155,245,0.6);
+            color: #5b9bf5; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s;
+        }
+        #niyaz-dialog .niyaz-close:hover { background: rgba(21,101,192,0.8); color: #fff; }
+
+        #niyaz-dialog .niyaz-parts-btn {
+            background: rgba(21,101,192,0.4); border: 1px solid rgba(91,155,245,0.6);
+            color: #5b9bf5; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s; width: 100%;
+        }
+        #niyaz-dialog .niyaz-parts-btn:hover { background: rgba(21,101,192,0.7); color: #fff; }
+        #niyaz-dialog .niyaz-parts-btn:disabled { opacity: 0.6; cursor: wait; }
+
+        #niyaz-parts-list {
+            max-height: 260px; overflow-y: auto; text-align: left;
+            margin-bottom: 12px; display: none;
+            border: 1px solid rgba(60,90,160,0.3); border-radius: 8px;
+            padding: 8px; background: rgba(10,15,30,0.6);
+        }
+        #niyaz-parts-list .part-item {
+            display: flex; gap: 10px; align-items: center;
+            padding: 8px; border-bottom: 1px solid rgba(60,90,160,0.2);
+        }
+        #niyaz-parts-list .part-item:last-child { border-bottom: none; }
+        #niyaz-parts-list .part-item img {
+            width: 44px; height: 44px; border-radius: 6px; flex-shrink: 0; object-fit: cover;
+        }
+        #niyaz-parts-list .part-item .part-info { flex: 1; min-width: 0; }
+        #niyaz-parts-list .part-item .part-info .part-name { color: #9bc7ff; font-size: 13px; font-weight: bold; }
+        #niyaz-parts-list .part-item .part-info .part-desc { color: #8a9; font-size: 12px; line-height: 1.3; }
+        #niyaz-parts-list .part-item .part-price { color: #f5b53b; font-size: 13px; font-weight: bold; white-space: nowrap; }
+        #niyaz-parts-list .part-item .part-buy {
+            background: rgba(120,200,120,0.15); border: 1px solid rgba(120,200,120,0.6);
+            color: #78c878; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 12px; white-space: nowrap; transition: all 0.15s;
+        }
+        #niyaz-parts-list .part-item .part-buy:hover { background: rgba(120,200,120,0.35); color: #fff; }
+        #niyaz-parts-list .part-item .part-buy:disabled { opacity: 0.55; cursor: default; }
+        #niyaz-parts-list .part-item .part-buy.sold { border-color: #78c878; color: #78c878; }
+        #niyaz-parts-list .parts-empty { color: #8a9; font-size: 13px; text-align: center; padding: 12px; }
+
+        #niyaz-part-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 30; display: none;
+            background: rgba(10,15,30,0.97); border: 1px solid rgba(120,200,120,0.5);
+            border-radius: 12px; padding: 24px; max-width: 420px; width: 90%;
+            text-align: center; pointer-events: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,.6);
+            opacity: 1; transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        #niyaz-part-dialog.fade-out { opacity: 0; transform: translate(-50%,-40%); pointer-events: none; }
+        #niyaz-part-dialog h2 { color: #78c878; font-size: 18px; margin-bottom: 12px; }
+        #niyaz-part-dialog img { width: 90px; height: 90px; border-radius: 10px; object-fit: cover; margin-bottom: 10px; }
+        #niyaz-part-dialog p { color: #ccc; font-size: 15px; line-height: 1.6; margin-bottom: 12px; }
+        #niyaz-part-dialog .part-price { color: #f5b53b; font-size: 20px; font-weight: bold; margin: 12px 0; }
+        #niyaz-part-dialog .part-close {
+            background: rgba(120,200,120,0.15); border: 1px solid rgba(120,200,120,0.6);
+            color: #78c878; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s;
+        }
+        #niyaz-part-dialog .part-close:hover { background: rgba(120,200,120,0.35); color: #fff; }
+        #niyaz-part-dialog .buy-now, #niyaz-cigar-dialog .buy-now {
+            background: rgba(120,200,120,0.25); border: 1px solid rgba(120,200,120,0.7);
+            color: #78c878; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s; margin-right: 8px;
+        }
+        #niyaz-part-dialog .buy-now:hover, #niyaz-cigar-dialog .buy-now:hover { background: rgba(120,200,120,0.5); color: #fff; }
+        #niyaz-part-dialog .buy-now:disabled, #niyaz-cigar-dialog .buy-now:disabled { opacity: 0.6; cursor: default; }
+
+        #niyaz-cigar-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 30; display: none;
+            background: rgba(10,15,30,0.97); border: 1px solid rgba(230,190,120,0.5);
+            border-radius: 12px; padding: 24px; max-width: 420px; width: 90%;
+            text-align: center; pointer-events: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,.6);
+            opacity: 1; transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        #niyaz-cigar-dialog.fade-out { opacity: 0; transform: translate(-50%,-40%); pointer-events: none; }
+        #niyaz-cigar-dialog h2 { color: #e6be78; font-size: 18px; margin-bottom: 12px; }
+        #niyaz-cigar-dialog img { width: 90px; height: 90px; border-radius: 10px; object-fit: cover; margin-bottom: 10px; }
+        #niyaz-cigar-dialog p { color: #ccc; font-size: 15px; line-height: 1.6; margin-bottom: 12px; }
+        #niyaz-cigar-dialog .cigar-price { color: #f5b53b; font-size: 20px; font-weight: bold; margin: 12px 0; }
+        #niyaz-cigar-dialog .cigar-warning {
+            color: #ff6b6b; font-size: 13px; font-weight: bold;
+            border: 1px solid rgba(255,107,107,0.5); border-radius: 6px;
+            padding: 8px; margin-bottom: 14px; background: rgba(255,107,107,0.08);
+        }
+        #niyaz-cigar-dialog .cigar-close {
+            background: rgba(230,190,120,0.15); border: 1px solid rgba(230,190,120,0.6);
+            color: #e6be78; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s;
+        }
+        #niyaz-cigar-dialog .cigar-close:hover { background: rgba(230,190,120,0.35); color: #fff; }
+
+        #niyaz-dialog .niyaz-cigar-btn {
+            background: rgba(230,190,120,0.15); border: 1px solid rgba(230,190,120,0.6);
+            color: #e6be78; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s; width: 100%;
+        }
+        #niyaz-dialog .niyaz-cigar-btn:hover { background: rgba(230,190,120,0.35); color: #fff; }
+        #niyaz-dialog .niyaz-cigar-btn:disabled { opacity: 0.6; cursor: wait; }
+
+        #niyaz-cigar-list {
+            max-height: 260px; overflow-y: auto; text-align: left;
+            margin-bottom: 12px; display: none;
+            border: 1px solid rgba(230,190,120,0.3); border-radius: 8px;
+            padding: 8px; background: rgba(10,15,30,0.6);
+        }
+        #niyaz-cigar-list .cigar-item {
+            display: flex; gap: 10px; align-items: center;
+            padding: 8px; border-bottom: 1px solid rgba(230,190,120,0.15);
+        }
+        #niyaz-cigar-list .cigar-item:last-child { border-bottom: none; }
+        #niyaz-cigar-list .cigar-item img {
+            width: 44px; height: 44px; border-radius: 6px; flex-shrink: 0; object-fit: cover;
+        }
+        #niyaz-cigar-list .cigar-item .cigar-info { flex: 1; min-width: 0; }
+        #niyaz-cigar-list .cigar-item .cigar-info .cigar-name { color: #e6be78; font-size: 13px; font-weight: bold; }
+        #niyaz-cigar-list .cigar-item .cigar-info .cigar-desc { color: #8a9; font-size: 12px; line-height: 1.3; }
+        #niyaz-cigar-list .cigar-item .cigar-price { color: #f5b53b; font-size: 13px; font-weight: bold; white-space: nowrap; }
+        #niyaz-cigar-list .cigar-item .cigar-buy {
+            background: rgba(120,200,120,0.15); border: 1px solid rgba(120,200,120,0.6);
+            color: #78c878; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 12px; white-space: nowrap; transition: all 0.15s;
+        }
+        #niyaz-cigar-list .cigar-item .cigar-buy:hover { background: rgba(120,200,120,0.35); color: #fff; }
+        #niyaz-cigar-list .cigar-item .cigar-buy:disabled { opacity: 0.55; cursor: default; }
+        #niyaz-cigar-list .cigar-item .cigar-buy.sold { border-color: #78c878; color: #78c878; }
+
+        #niyaz-balance {
+            position: fixed; left: 16px; bottom: 18px; z-index: 30;
+            background: rgba(20,60,30,0.92); border: 1px solid rgba(120,220,120,0.5);
+            border-radius: 8px; padding: 10px 16px; color: #7ee07e; font-size: 14px;
+            pointer-events: none; display: none; min-width: 220px;
+            box-shadow: 0 4px 20px rgba(0,0,0,.5);
+        }
+        #buyer-balance {
+            position: fixed; right: 16px; bottom: 18px; z-index: 30;
+            background: rgba(70,20,20,0.92); border: 1px solid rgba(255,107,107,0.5);
+            border-radius: 8px; padding: 10px 16px; color: #ff6b6b; font-size: 14px;
+            pointer-events: none; display: block; min-width: 220px; text-align: right;
+            box-shadow: 0 4px 20px rgba(0,0,0,.5);
+        }
+        .balance-gain { animation: balancePulse 1s ease; }
+        .balance-loss { animation: balancePulseRed 1s ease; }
+        @keyframes balancePulse {
+            0% { transform: scale(1); background: rgba(20,60,30,0.92); }
+            40% { transform: scale(1.08); background: rgba(40,120,60,0.95); }
+            100% { transform: scale(1); background: rgba(20,60,30,0.92); }
+        }
+        @keyframes balancePulseRed {
+            0% { transform: scale(1); background: rgba(70,20,20,0.92); }
+            40% { transform: scale(1.08); background: rgba(160,40,40,0.95); }
+            100% { transform: scale(1); background: rgba(70,20,20,0.92); }
+        }
+    </style>
+
+    <div id="niyaz-dialog">
+        <button class="niyaz-dialog-x" onclick="closeNiyazDialog()" aria-label="Закрыть">✖</button>
+        <div class="niyaz-dialog-scroll">
+            <h2>Нияз Бабай</h2>
+            <p id="niyaz-dialog-text"><b>Главный по БМВ</b><br><br>
+            — Привет! Я Нияз Бабай. В автомобилях BMW я человек опытный.<br><br>
+            — Расскажу многое полезное о запчастях для них. Спрашивай когда захочешь!</p>
+            <div id="niyaz-parts-list"></div>
+            <div style="margin-bottom: 12px;">
+                <button class="niyaz-parts-btn" id="niyaz-parts-btn" onclick="askNiyazPartsList()">🔧 Что есть на продажу?</button>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <button class="niyaz-cigar-btn" id="niyaz-cigar-btn" onclick="askNiyazCigars()">🚬 А сигары из Кубы имеются?</button>
+            </div>
+            <div id="niyaz-cigar-list"></div>
+        </div>
+        <button class="niyaz-close" onclick="closeNiyazDialog()">Закрыть</button>
+    </div>
+
+    <div id="niyaz-part-dialog">
+        <h2 id="niyaz-part-dialog-title">Автозапчасть BMW</h2>
+        <img id="niyaz-part-dialog-img" src="" alt="">
+        <p id="niyaz-part-dialog-desc">—</p>
+        <p id="niyaz-part-dialog-price"></p>
+        <button class="buy-now" onclick="buyShelfPart()">Купить</button>
+        <button class="part-close" onclick="closeNiyazPartDialog()">Закрыть</button>
+    </div>
+
+    <div id="niyaz-cigar-dialog">
+        <h2 id="niyaz-cigar-dialog-title">Кубинская сигара</h2>
+        <img id="niyaz-cigar-dialog-img" src="" alt="">
+        <p id="niyaz-cigar-dialog-desc">—</p>
+        <p id="niyaz-cigar-dialog-price"></p>
+        <div class="cigar-warning">⚠️ Курить ВРЕДНО для ЗДОРОВЬЯ!</div>
+        <button class="buy-now" onclick="buyShelfCigar()">Купить</button>
+        <button class="cigar-close" onclick="closeNiyazCigarDialog()">Закрыть</button>
+    </div>
+
+    <div id="niyaz-balance">💰 <b>Нияз Бабай:</b> <span id="niyaz-balance-value">0</span> ₽</div>
+    <div id="buyer-balance">💰 <b>Ваш баланс:</b> <span id="buyer-balance-value">100000</span> ₽</div>
+</th:block>
+
+<th:block th:fragment="logic">
+    <script th:inline="none">
+        (function () {
+            // ============================================================
+            // ROOM 4 (rightmost) — Steve "Нияз Бабай" (BMW expert + cigars)
+            // ============================================================
+
+            var niyazObject = null;
+            var niyazLabel = null;
+            var niyazMumbleSpriteRef = null;
+            var niyazMumbleMat = null;
+            var niyazMumbleOpacity = 0;
+            var niyazMumbleTargetOpacity = 0;
+            var niyazMumbleTimer = null;
+            var niyazBaseY = 0;
+
+            // Waypoints inside fourth room (centered at x=8.0, z spans 0..-5.26)
+            var niyazWaypoints = [];
+            niyazWaypoints.push({ x: 8.0, z: -4.0 });
+            niyazWaypoints.push({ x: 8.8, z: -2.5 });
+            niyazWaypoints.push({ x: 7.4, z: -1.5 });
+            niyazWaypoints.push({ x: 8.5, z: -3.5 });
+            niyazWaypoints.push({ x: 7.1, z: -4.2 });
+            niyazWaypoints.push({ x: 8.0, z: -2.0 });
+            niyazWaypoints.push({ x: 8.9, z: -1.0 });
+            niyazWaypoints.push({ x: 7.6, z: -3.0 });
+
+            var niyazCurrentWaypoint = 0;
+            var niyazWalkSpeed = 0.04;
+            var niyazWalkPhase = 0;
+            var niyazWalking = false;
+            var niyazIdleTimer = null;
+            var niyazTargetX = 8.0, niyazTargetZ = -4.0;
+            var niyazCurrentRotation = 0;
+
+            function startNiyazWalk() {
+                niyazCurrentWaypoint = (niyazCurrentWaypoint + 1) % niyazWaypoints.length;
+                var wp = niyazWaypoints[niyazCurrentWaypoint];
+                niyazTargetX = wp.x;
+                niyazTargetZ = wp.z;
+                niyazWalking = true;
+            }
+
+            function scheduleNextNiyazWalk() {
+                var delay = 4000 + Math.random() * 8000; // 4-12 sec idle
+                niyazIdleTimer = setTimeout(startNiyazWalk, delay);
+            }
+
+            function showNiyazDialog() {
+                var dlg = document.getElementById('niyaz-dialog');
+                dlg.classList.remove('fade-out');
+                dlg.style.display = 'flex';
+            }
+
+            window.closeNiyazDialog = function () {
+                var dlg = document.getElementById('niyaz-dialog');
+                dlg.classList.add('fade-out');
+                setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+            };
+
+            function showNiyazPartDialog(mesh) {
+                var dlg = document.getElementById('niyaz-part-dialog');
+                dlg.classList.remove('fade-out');
+                currentShelfPart = mesh;
+                document.getElementById('niyaz-part-dialog-title').textContent = mesh.userData.partName;
+                document.getElementById('niyaz-part-dialog-img').src = mesh.userData.partImage;
+                document.getElementById('niyaz-part-dialog-desc').textContent = '— ' + mesh.userData.partDesc + '.';
+                document.getElementById('niyaz-part-dialog-price').className = 'part-price';
+                document.getElementById('niyaz-part-dialog-price').textContent =
+                    mesh.userData.partPrice.toLocaleString('ru-RU') + ' ₽';
+                var buyBtn = document.querySelector('#niyaz-part-dialog .buy-now');
+                if (buyBtn) {
+                    buyBtn.disabled = !!partSoldList[mesh.id];
+                    buyBtn.textContent = partSoldList[mesh.id] ? '✅ Куплено' : 'Купить';
+                }
+                dlg.style.display = 'block';
+            }
+
+            window.buyShelfPart = function () {
+                if (!currentShelfPart) return;
+                if (partSoldList[currentShelfPart.id]) return;
+                var price = currentShelfPart.userData.partPrice;
+                var name = currentShelfPart.userData.partName;
+                if (buyerWallet < price) {
+                    alert('Не хватает средств на покупку ' + name + '!');
+                    return;
+                }
+                var oldNiyaz = niyazWallet;
+                var oldBuyer = buyerWallet;
+                niyazWallet += price;
+                buyerWallet -= price;
+                partSoldList[currentShelfPart.id] = true;
+
+                animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
+                animateWallet('buyer-balance-value', oldBuyer, buyerWallet, false, document.getElementById('buyer-balance'));
+
+                var buyBtn = document.querySelector('#niyaz-part-dialog .buy-now');
+                if (buyBtn) {
+                    buyBtn.disabled = true;
+                    buyBtn.textContent = '✅ Куплено';
+                }
+                var priceEl = document.getElementById('niyaz-part-dialog-price');
+                priceEl.className = 'part-price';
+                priceEl.textContent = price.toLocaleString('ru-RU') + ' ₽ — оплачено ✅';
+            };
+
+            window.closeNiyazPartDialog = function () {
+                var dlg = document.getElementById('niyaz-part-dialog');
+                dlg.classList.add('fade-out');
+                setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+            };
+
+            function showNiyazCigarDialog(mesh) {
+                var dlg = document.getElementById('niyaz-cigar-dialog');
+                dlg.classList.remove('fade-out');
+                currentShelfCigar = mesh;
+                document.getElementById('niyaz-cigar-dialog-title').textContent = mesh.userData.cigarName;
+                document.getElementById('niyaz-cigar-dialog-img').src = mesh.userData.cigarImage;
+                document.getElementById('niyaz-cigar-dialog-desc').textContent = '— ' + mesh.userData.cigarDesc + '.';
+                document.getElementById('niyaz-cigar-dialog-price').className = 'cigar-price';
+                document.getElementById('niyaz-cigar-dialog-price').textContent =
+                    mesh.userData.cigarPrice.toLocaleString('ru-RU') + ' ₽';
+                var buyBtn = document.querySelector('#niyaz-cigar-dialog .buy-now');
+                if (buyBtn) {
+                    buyBtn.disabled = !!cigarSoldList[mesh.id];
+                    buyBtn.textContent = cigarSoldList[mesh.id] ? '✅ Куплено' : 'Купить';
+                }
+                dlg.style.display = 'block';
+            }
+
+            window.buyShelfCigar = function () {
+                if (!currentShelfCigar) return;
+                if (cigarSoldList[currentShelfCigar.id]) return;
+                var price = currentShelfCigar.userData.cigarPrice;
+                var name = currentShelfCigar.userData.cigarName;
+                if (buyerWallet < price) {
+                    alert('Не хватает средств на покупку ' + name + '!');
+                    return;
+                }
+                var oldNiyaz = niyazWallet;
+                var oldBuyer = buyerWallet;
+                niyazWallet += price;
+                buyerWallet -= price;
+                cigarSoldList[currentShelfCigar.id] = true;
+
+                animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
+                animateWallet('buyer-balance-value', oldBuyer, buyerWallet, false, document.getElementById('buyer-balance'));
+
+                var buyBtn = document.querySelector('#niyaz-cigar-dialog .buy-now');
+                if (buyBtn) {
+                    buyBtn.disabled = true;
+                    buyBtn.textContent = '✅ Куплено';
+                }
+                var priceEl = document.getElementById('niyaz-cigar-dialog-price');
+                priceEl.className = 'cigar-price';
+                priceEl.textContent = price.toLocaleString('ru-RU') + ' ₽ — оплачено ✅';
+            };
+
+            window.closeNiyazCigarDialog = function () {
+                var dlg = document.getElementById('niyaz-cigar-dialog');
+                dlg.classList.add('fade-out');
+                setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+            };
+
+            window.askNiyazPartsList = function () {
+                var btn = document.getElementById('niyaz-parts-btn');
+                var listEl = document.getElementById('niyaz-parts-list');
+                if (!btn || !listEl) return;
+                btn.disabled = true;
+                btn.textContent = '⏳ Загружаю каталог BMW...';
+                listEl.style.display = 'block';
+                listEl.innerHTML = '<div class="parts-empty">Запрашиваю каталог у поставщиков BMW...</div>';
+
+                fetch('/api/bmw-parts')
+                    .then(function (r) {
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.json();
+                    })
+                    .then(function (parts) {
+                        if (!parts || parts.length === 0) {
+                            listEl.innerHTML = '<div class="parts-empty">Пусто — все раскупили!</div>';
+                            return;
+                        }
+                        var html = '';
+                        for (var i = 0; i < parts.length; i++) {
+                            var p = parts[i];
+                            var price = p.price.toLocaleString('ru-RU') + ' ₽';
+                            html += '<div class="part-item">' +
+                                '<img src="' + p.image + '" alt="' + p.name + '">' +
+                                '<div class="part-info"><div class="part-name">' + p.name + '</div>' +
+                                '<div class="part-desc">' + p.description + '</div></div>' +
+                                '<div class="part-price">' + price + '</div>' +
+                                '<button class="part-buy" onclick="buyNiyazPart(\'' +
+                                p.name.replace(/'/g, '\\\'') + '\',' + p.price + ', this)">Купить</button>' +
+                                '</div>';
+                        }
+                        listEl.innerHTML = html;
+                    })
+                    .catch(function (err) {
+                        listEl.innerHTML = '<div class="parts-empty">Ошибка каталога: ' + err.message + '. Попробуй ещё раз.</div>';
+                    })
+                    .finally(function () {
+                        btn.disabled = false;
+                        btn.textContent = '🔧 Что есть на продажу?';
+                    });
+            };
+
+            var niyazWallet = 0;
+            var buyerWallet = 100000;
+            var cigarSold = false;
+            var currentShelfPart = null;
+            var currentShelfCigar = null;
+            var partSoldList = {};
+            var cigarSoldList = {};
+
+            window.askNiyazCigars = function () {
+                var btn = document.getElementById('niyaz-cigar-btn');
+                var listEl = document.getElementById('niyaz-cigar-list');
+                var textEl = document.getElementById('niyaz-dialog-text');
+                if (!btn || !listEl || !textEl) return;
+                btn.disabled = true;
+                btn.textContent = '⏳ Проверяю запасы...';
+                listEl.style.display = 'block';
+                listEl.innerHTML = '<div class="parts-empty">Достаю сигары из-под полы...</div>';
+
+                fetch('/api/cigars')
+                    .then(function (r) {
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.json();
+                    })
+                    .then(function (cigars) {
+                        if (!cigars || cigars.length === 0) {
+                            listEl.innerHTML = '<div class="parts-empty">Пусто — всё выкурили!</div>';
+                            textEl.innerHTML = '<b>Главный по БМВ</b><br><br>— Эх, сигары кончились, вчера всё выкурили. Но ты заходи, скоро подвезут свежие!';
+                            return;
+                        }
+                        textEl.innerHTML = '<b>Главный по БМВ</b><br><br>— Ну что ты! Конечно есть. Первосортные, из-под полы, настоящие кубинские. Вот мой ассортимент — выбирай любую!';
+                        var html = '';
+                        for (var i = 0; i < cigars.length; i++) {
+                            var c = cigars[i];
+                            var price = c.price.toLocaleString('ru-RU') + ' ₽';
+                            html += '<div class="cigar-item">' +
+                                '<img src="' + c.image + '" alt="' + c.name + '">' +
+                                '<div class="cigar-info"><div class="cigar-name">' + c.name + '</div>' +
+                                '<div class="cigar-desc">' + c.description + '</div></div>' +
+                                '<div class="cigar-price">' + price + '</div>' +
+                                '<button class="cigar-buy" onclick="buyNiyazCigar(\'' +
+                                c.name.replace(/'/g, '\\\'') + '\',' + c.price + ', this)">Купить</button>' +
+                                '</div>';
+                        }
+                        listEl.innerHTML = html;
+                        document.getElementById('niyaz-balance').style.display = 'block';
+                        document.getElementById('buyer-balance').style.display = 'block';
+                    })
+                    .catch(function (err) {
+                        listEl.innerHTML = '<div class="parts-empty">Ошибка: ' + err.message + '. Попробуй ещё раз.</div>';
+                        textEl.innerHTML = '<b>Главный по БМВ</b><br><br>— Ой, подвал заперт: ' + err.message + '. Загляни чуть позже.';
+                    })
+                    .finally(function () {
+                        btn.disabled = false;
+                        btn.textContent = '🚬 А сигары из Кубы имеются?';
+                    });
+            };
+
+            function animateWallet(id, from, to, up, target) {
+                var el = document.getElementById(id);
+                if (!el) return;
+                var duration = 1200;
+                var start = null;
+                function step(ts) {
+                    if (!start) start = ts;
+                    var p = Math.min((ts - start) / duration, 1);
+                    var eased = 1 - Math.pow(1 - p, 3);
+                    var val = Math.round(from + (to - from) * eased);
+                    el.textContent = val.toLocaleString('ru-RU');
+                    if (p < 1) requestAnimationFrame(step);
+                }
+                requestAnimationFrame(step);
+                var box = target;
+                if (box) {
+                    box.style.display = 'block';
+                    box.classList.remove(up ? 'balance-gain' : 'balance-loss');
+                    void box.offsetWidth;
+                    box.classList.add(up ? 'balance-gain' : 'balance-loss');
+                }
+            }
+
+            window.buyNiyazPart = function (name, price, btn) {
+                if (!btn || btn.disabled) return;
+                if (buyerWallet < price) {
+                    alert('Не хватает средств на покупку ' + name + '!');
+                    return;
+                }
+                btn.disabled = true;
+                btn.textContent = '✅ Куплено';
+                btn.classList.add('sold');
+
+                var oldNiyaz = niyazWallet;
+                var oldBuyer = buyerWallet;
+                niyazWallet += price;
+                buyerWallet -= price;
+
+                animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
+                animateWallet('buyer-balance-value', oldBuyer, buyerWallet, false, document.getElementById('buyer-balance'));
+
+                var textEl = document.getElementById('niyaz-dialog-text');
+                textEl.innerHTML = '<b>Главный по БМВ</b><br><br>' +
+                    '— <b style="color:#9bc7ff">' + name + '</b> — отличная деталь, в руках опытного механика будет жить вечно!<br><br>' +
+                    '— Сделка закрыта: +<b style="color:#7ee07e">' + price.toLocaleString('ru-RU') + ' ₽</b> к моему балансу. ' +
+                    'Бери, не пожалеешь. И на сдачу — без обид!';
+            };
+
+            window.buyNiyazCigar = function (name, price, btn) {
+                if (!btn || btn.disabled) return;
+                if (buyerWallet < price) {
+                    alert('Не хватает средств на покупку сигары ' + name + '!');
+                    return;
+                }
+                btn.disabled = true;
+                btn.textContent = '✅ Куплено';
+                btn.classList.add('sold');
+
+                var oldNiyaz = niyazWallet;
+                var oldBuyer = buyerWallet;
+                niyazWallet += price;
+                buyerWallet -= price;
+
+                animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
+                animateWallet('buyer-balance-value', oldBuyer, buyerWallet, false, document.getElementById('buyer-balance'));
+
+                var textEl = document.getElementById('niyaz-dialog-text');
+                textEl.innerHTML = '<b>Главный по БМВ</b><br><br>' +
+                    '— <b style="color:#e6be78">' + name + '</b>? Отличный выбор! Хороший вкус у тебя, уважаю.<br><br>' +
+                    '— Сделка закрыта: +<b style="color:#7ee07e">' + price.toLocaleString('ru-RU') + ' ₽</b> к моему балансу. ' +
+                    'Рад был иметь дело!<br><br>— И ты, я вижу, доволен покупкой. Наслаждайся сигарой, но помни — курить вредно для здоровья!';
+            };
+
+            // ---- Shelf goods for Niyaz: BMW parts + a few Cuban cigars ----
+            var niyazPartNames = [
+                ['Тормозные колодки BMW', 'оригинал, комплект 4 шт, почти новые'],
+                ['Тормозные диски BMW', 'вентилируемые, комплект 2 шт'],
+                ['Свечи зажигания BMW', 'иридиевые, комплект 6 шт'],
+                ['Масляный фильтр BMW', 'оригинальный, для N20/N47'],
+                ['Воздушный фильтр BMW', 'панельный, высокая пропускная'],
+                ['Ремень ГРМ BMW', 'комплект с роликами и натяжителем'],
+                ['Цепь ГРМ BMW', 'усиленная, с успокоителем'],
+                ['Радиатор BMW', 'алюминиевый, двухрядный'],
+                ['Амортизатор передний BMW', 'газомасляный, усиленный'],
+                ['Пружина задняя BMW', 'усиленная, комплект 2 шт'],
+                ['Аккумулятор BMW', 'AGM 90 Ач, с гарантией'],
+                ['Генератор BMW', '150 А, новый, с регулятором'],
+                ['Стартер BMW', 'восстановленный, обслуженный'],
+                ['Фара BMW Angel Eyes', 'с LED и омывателем'],
+                ['Решётка радиатора BMW', 'хромированная, с эмблемой'],
+                ['Эмблема BMW', 'капотная, оригинал, хром'],
+                ['Бампер M', 'передний, для M-пакета'],
+                ['Зеркало боковое BMW', 'с обогревом и поворотником'],
+                ['Рулевая рейка BMW', 'с усилителем, б/у отличное'],
+                ['Турбина BMW', 'для дизеля, проверенная'],
+                ['Двигатель BMW', 'б/у, проверенный, с гарантией'],
+                ['Коробка BMW ZF', '8HP, проверенная'],
+                ['Тормозная жидкость BMW', 'DOT 4, 1 литр'],
+                ['Капот BMW', 'стальной, без коррозии'],
+                ['Крыло переднее BMW', 'с цветом кузова']
+            ];
+
+            var niyazCigarNames = [
+                ['Сигара Cohiba Esplendidos', 'свежая, с Кубы, из-под полы'],
+                ['Сигара Montecristo No.2', 'выдержанная, ароматная'],
+                ['Сигара Partagas Serie D4', 'крепкая, для ценителей'],
+                ['Сигара Romeo y Julieta', 'мягкая, с нотами дерева'],
+                ['Сигара H.Upmann Magnum 50', 'сбалансированная, классика'],
+                ['Сигара Trinidad Vigia', 'редкая, коллекционная'],
+                ['Сигара Bolivar Belicoso', 'пряная, насыщенная'],
+                ['Сигара Hoyo de Monterrey', 'лёгкая, сливочная']
+            ];
+
+            function partShapeFor(name) {
+                var n = name.toLowerCase();
+                if (n.indexOf('диск') >= 0) return 'disc';
+                if (n.indexOf('колодк') >= 0) return 'disc';
+                if (n.indexOf('фильтр') >= 0) return 'filter';
+                if (n.indexOf('свечи') >= 0) return 'spark';
+                if (n.indexOf('аккумулятор') >= 0) return 'battery';
+                if (n.indexOf('жидкост') >= 0) return 'bottle';
+                if (n.indexOf('фара') >= 0) return 'headlight';
+                if (n.indexOf('ремень') >= 0) return 'belt';
+                if (n.indexOf('цепь') >= 0) return 'belt';
+                return 'box';
+            }
+
+            function makePartImage(name) {
+                var cat = partShapeFor(name);
+                var svg = "<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>"
+                    + "<defs>"
+                    + "<linearGradient id='bg' x1='0' y1='0' x2='0' y2='1'>"
+                    + "<stop offset='0' stop-color='#e6eef8'/><stop offset='1' stop-color='#b9c8dc'/></linearGradient>"
+                    + "<linearGradient id='met' x1='0' y1='0' x2='0' y2='1'>"
+                    + "<stop offset='0' stop-color='#a7b3c0'/><stop offset='1' stop-color='#6c7885'/></linearGradient>"
+                    + "<linearGradient id='cyl' x1='0' y1='0' x2='0' y2='1'>"
+                    + "<stop offset='0' stop-color='#cfd8e2'/><stop offset='1' stop-color='#8b97a5'/></linearGradient>"
+                    + "</defs>"
+                    + "<rect width='160' height='160' rx='12' fill='url(#bg)'/>";
+
+                if (cat === 'disc') {
+                    svg += "<circle cx='80' cy='72' r='52' fill='url(#met)' stroke='#525d6a' stroke-width='2'/>"
+                        + "<circle cx='80' cy='72' r='40' fill='none' stroke='#cfd8e2' stroke-width='3'/>"
+                        + "<circle cx='80' cy='72' r='14' fill='#525d6a'/>"
+                        + "<circle cx='80' cy='72' r='6' fill='#eef2f6'/>";
+                    for (var b = 0; b < 5; b++) {
+                        var a = b * 72;
+                        var bx = 80 + 26 * Math.cos(a * Math.PI / 180);
+                        var by = 72 + 26 * Math.sin(a * Math.PI / 180);
+                        svg += "<circle cx='" + bx.toFixed(1) + "' cy='" + by.toFixed(1) + "' r='5' fill='#4b5661'/>";
+                    }
+                } else if (cat === 'filter') {
+                    svg += "<rect x='52' y='28' width='56' height='92' rx='10' fill='url(#cyl)' stroke='#6c7885' stroke-width='2'/>"
+                        + "<ellipse cx='80' cy='30' rx='28' ry='9' fill='#eef2f6'/>"
+                        + "<ellipse cx='80' cy='118' rx='28' ry='9' fill='#b7c2cd'/>"
+                        + "<rect x='60' y='52' width='40' height='8' rx='3' fill='#eef2f6'/>"
+                        + "<text x='80' y='84' font-size='11' text-anchor='middle' fill='#2c3742' font-weight='bold'>OIL</text>";
+                } else if (cat === 'spark') {
+                    svg += "<rect x='74' y='26' width='12' height='40' rx='3' fill='#6c7885'/>"
+                        + "<rect x='70' y='64' width='20' height='42' rx='4' fill='#eef2f6'/>"
+                        + "<rect x='76' y='104' width='8' height='22' fill='#525d6a'/>"
+                        + "<rect x='62' y='48' width='36' height='10' rx='3' fill='#8b97a5'/>"
+                        + "<circle cx='80' cy='126' r='5' fill='#8b97a5'/>";
+                } else if (cat === 'battery') {
+                    svg += "<rect x='30' y='52' width='100' height='60' rx='6' fill='#1f4e9c'/>"
+                        + "<rect x='48' y='42' width='12' height='16' rx='2' fill='#cfd8e2'/>"
+                        + "<rect x='100' y='42' width='12' height='16' rx='2' fill='#cfd8e2'/>"
+                        + "<rect x='38' y='64' width='84' height='28' rx='4' fill='#163a75'/>"
+                        + "<text x='80' y='83' font-size='13' text-anchor='middle' fill='#fff' font-weight='bold'>12V 90Ah</text>";
+                } else if (cat === 'bottle') {
+                    svg += "<rect x='66' y='26' width='28' height='22' rx='4' fill='#8b97a5'/>"
+                        + "<rect x='70' y='48' width='20' height='10' fill='#6c7885'/>"
+                        + "<rect x='58' y='58' width='44' height='70' rx='8' fill='url(#cyl)' stroke='#6c7885' stroke-width='2'/>"
+                        + "<rect x='52' y='112' width='56' height='8' rx='3' fill='#525d6a'/>"
+                        + "<text x='80' y='98' font-size='11' text-anchor='middle' fill='#1f4e9c' font-weight='bold'>DOT4</text>";
+                } else if (cat === 'headlight') {
+                    svg += "<path d='M30 96 Q30 44 80 42 Q130 44 130 96 L118 120 L42 120 Z' fill='#0e2438'/>"
+                        + "<rect x='44' y='54' width='72' height='52' rx='10' fill='#dfe8f5' opacity='0.95'/>"
+                        + "<circle cx='66' cy='80' r='16' fill='#fff'/>"
+                        + "<circle cx='66' cy='80' r='8' fill='#ffd24a'/>"
+                        + "<rect x='84' y='92' width='22' height='6' rx='3' fill='#ffd24a'/>";
+                } else if (cat === 'belt') {
+                    svg += "<path d='M80 30 L122 52 L122 108 L80 130 L38 108 L38 52 Z' fill='none' stroke='#2c3742' stroke-width='16' stroke-linejoin='round'/>"
+                        + "<path d='M80 30 L122 52 L122 108 L80 130 L38 108 L38 52 Z' fill='none' stroke='#8b97a5' stroke-width='4'/>"
+                        + "<circle cx='80' cy='80' r='30' fill='#eef2f6' stroke='#525d6a' stroke-width='3'/>"
+                        + "<circle cx='80' cy='80' r='10' fill='#525d6a'/>";
+                } else {
+                    svg += "<rect x='38' y='34' width='84' height='84' rx='6' fill='url(#met)' stroke='#525d6a' stroke-width='2'/>"
+                        + "<rect x='46' y='42' width='68' height='68' rx='4' fill='#cfd8e2'/>"
+                        + "<rect x='56' y='54' width='48' height='12' rx='3' fill='#1f4e9c'/>"
+                        + "<circle cx='80' cy='84' r='16' fill='#8b97a5'/>"
+                        + "<circle cx='80' cy='84' r='6' fill='#525d6a'/>";
+                }
+
+                svg += "<rect x='16' y='136' width='128' height='16' rx='4' fill='#1f4e9c'/>"
+                    + "<text x='80' y='148' font-size='11' text-anchor='middle' fill='#fff' font-weight='bold'>BMW ORIGINAL</text>"
+                    + "</svg>";
+                return "data:image/svg+xml;base64," + btoa(svg);
+            }
+
+            function makeCigarImage() {
+                var svg = "<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>"
+                    + "<defs>"
+                    + "<linearGradient id='bg' x1='0' y1='0' x2='0' y2='1'>"
+                    + "<stop offset='0' stop-color='#f3e9d4'/><stop offset='1' stop-color='#cbb993'/></linearGradient>"
+                    + "<linearGradient id='cig' x1='0' y1='0' x2='0' y2='1'>"
+                    + "<stop offset='0' stop-color='#7a4a22'/><stop offset='1' stop-color='#4d2c12'/></linearGradient>"
+                    + "</defs>"
+                    + "<rect width='160' height='160' rx='12' fill='url(#bg)'/>"
+                    + "<rect x='24' y='108' width='112' height='10' rx='5' fill='#9a8256' opacity='0.6'/>"
+                    + "<rect x='28' y='70' width='104' height='32' rx='16' fill='url(#cig)'/>"
+                    + "<rect x='58' y='66' width='40' height='40' rx='4' fill='#e7d3a6'/>"
+                    + "<rect x='58' y='66' width='40' height='8' fill='#b8462f'/>"
+                    + "<rect x='58' y='98' width='40' height='8' fill='#b8462f'/>"
+                    + "<text x='78' y='90' font-size='10' text-anchor='middle' fill='#4d2c12' font-weight='bold'>CUBA</text>"
+                    + "<path d='M118 70 Q126 60 120 48 Q114 38 120 26' fill='none' stroke='#8b7b6a' stroke-width='4' stroke-linecap='round' opacity='0.6'/>"
+                    + "<path d='M124 66 Q132 56 126 44' fill='none' stroke='#8b7b6a' stroke-width='3' stroke-linecap='round' opacity='0.4'/>"
+                    + "<rect x='120' y='74' width='12' height='24' rx='5' fill='#d9d2c4'/>"
+                    + "</svg>";
+                return "data:image/svg+xml;base64," + btoa(svg);
+            }
+
+            function buildNiyazShelfItem(cat, spot, shelfY) {
+                var geo, mat;
+                var palette = [0x8a939c, 0x6b7680, 0x1f4e9c, 0x2c3742];
+                if (cat === 'disc') {
+                    geo = new THREE.CylinderGeometry(0.13, 0.13, 0.03, 20);
+                    mat = new THREE.MeshPhongMaterial({ color: 0x9aa7b5, flatShading: false, specular: 0x333333, shininess: 40 });
+                } else if (cat === 'filter') {
+                    geo = new THREE.CylinderGeometry(0.065, 0.065, 0.17, 16);
+                    mat = new THREE.MeshPhongMaterial({ color: 0xb7c2cd, flatShading: true });
+                } else if (cat === 'spark') {
+                    geo = new THREE.CylinderGeometry(0.025, 0.025, 0.14, 12);
+                    mat = new THREE.MeshPhongMaterial({ color: 0xdfe8f5, flatShading: true });
+                } else if (cat === 'battery') {
+                    geo = new THREE.BoxGeometry(0.22, 0.15, 0.12);
+                    mat = new THREE.MeshPhongMaterial({ color: 0x1f4e9c, flatShading: true });
+                } else if (cat === 'bottle') {
+                    geo = new THREE.CylinderGeometry(0.04, 0.04, 0.18, 12);
+                    mat = new THREE.MeshPhongMaterial({ color: 0x8b97a5, flatShading: true });
+                } else if (cat === 'headlight') {
+                    geo = new THREE.BoxGeometry(0.2, 0.1, 0.12);
+                    mat = new THREE.MeshPhongMaterial({ color: 0x0e2438, flatShading: true });
+                } else {
+                    var w = 0.2 + Math.random() * 0.12;
+                    var h = 0.14 + Math.random() * 0.1;
+                    var d = 0.14 + Math.random() * 0.1;
+                    geo = new THREE.BoxGeometry(w, h, d);
+                    mat = new THREE.MeshPhongMaterial({ color: palette[Math.floor(Math.random() * palette.length)], flatShading: true });
+                }
+                var item = new THREE.Mesh(geo, mat);
+                var itemBox = new THREE.Box3().setFromObject(item);
+                var itemSize = itemBox.getSize(new THREE.Vector3());
+                item.position.set(spot.x, shelfY + itemSize.y / 2, spot.z);
+                item.rotation.y = Math.random() * 0.6 - 0.3;
+                return item;
+            }
+
+            function buildNiyazCigarMesh(spot, shelfY) {
+                var group = new THREE.Group();
+                var body = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.04, 0.04, 0.24, 14),
+                    new THREE.MeshPhongMaterial({ color: 0x6b4423, flatShading: true })
+                );
+                var band = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.045, 0.045, 0.05, 14),
+                    new THREE.MeshPhongMaterial({ color: 0xd9c48f, flatShading: true })
+                );
+                body.rotation.x = Math.PI / 2;
+                band.rotation.x = Math.PI / 2;
+                band.position.z = 0.03;
+                group.add(body);
+                group.add(band);
+                group.position.set(spot.x, shelfY + 0.045, spot.z);
+                group.rotation.z = Math.random() * Math.PI;
+                return group;
+            }
+
+            function placeNiyazGoods(ctx) {
+                var shelfYs = [0.78, 1.38, 1.98];
+                var zPositions = [-4.2, -3.4, -2.6, -1.8, -1.0];
+                var cigarImage = makeCigarImage();
+
+                for (var si = 0; si < shelfYs.length; si++) {
+                    var shelfY = shelfYs[si];
+                    for (var zi = 0; zi < zPositions.length; zi++) {
+                        for (var side = 0; side < 2; side++) {
+                            var spotX = side === 0 ? (6.52 + Math.random() * 0.3) : (9.12 + Math.random() * 0.3);
+                            var spot = { x: spotX, z: zPositions[zi] + (Math.random() - 0.5) * 0.08 };
+
+                            var isCigar = Math.random() < 0.25;
+                            if (isCigar) {
+                                var cIdx = Math.floor(Math.random() * niyazCigarNames.length);
+                                var cigarData = niyazCigarNames[cIdx];
+                                var cigarGroup = buildNiyazCigarMesh(spot, shelfY);
+                                cigarGroup.traverse(function (child) {
+                                    if (child.isMesh) {
+                                        child.userData.isNiyazCigar = true;
+                                        child.userData.cigarName = cigarData[0];
+                                        child.userData.cigarDesc = cigarData[1];
+                                        child.userData.cigarImage = cigarImage;
+                                        child.userData.cigarPrice = 800 + Math.floor(Math.random() * 7000);
+                                        ctx.interactives.push(child);
+                                    }
+                                });
+                                ctx.scene.add(cigarGroup);
+                            } else {
+                                var nameIdx = Math.floor(Math.random() * niyazPartNames.length);
+                                var partData = niyazPartNames[nameIdx];
+                                var cat = partShapeFor(partData[0]);
+                                var item = buildNiyazShelfItem(cat, spot, shelfY);
+                                item.userData.isNiyazPart = true;
+                                item.userData.partName = partData[0];
+                                item.userData.partDesc = partData[1];
+                                item.userData.partImage = makePartImage(partData[0]);
+                                item.userData.partPrice = 1000 + Math.floor(Math.random() * 80000);
+                                ctx.interactives.push(item);
+                                ctx.scene.add(item);
+                            }
+                        }
+                    }
+                }
+            }
+
+            window.Room3DComponents.push({
+                id: 'niyaz',
+                load: function (ctx) {
+                    // ---- Load Steve (Niyaz Babay) inside the fourth room ----
+                    var niyazMtlLoader = new THREE.MTLLoader();
+                    niyazMtlLoader.setPath('/steeve/');
+                    niyazMtlLoader.load('minecraft_-_steve.mtl', function (niyazMats) {
+                        niyazMats.preload();
+
+                        var niyazObjLoader = new THREE.OBJLoader();
+                        niyazObjLoader.setMaterials(niyazMats);
+                        niyazObjLoader.setPath('/steeve/');
+                        niyazObjLoader.load('minecraft_-_steve.obj', function (niyaz) {
+                            // Same size as Alexey/Sergey ~1.2m tall
+                            var box = new THREE.Box3().setFromObject(niyaz);
+                            var size = box.getSize(new THREE.Vector3());
+                            var maxDim = Math.max(size.x, size.y, size.z);
+                            var scale = 1.2 / maxDim;
+                            niyaz.scale.setScalar(scale);
+
+                            var scaledBox = new THREE.Box3().setFromObject(niyaz);
+                            var center = scaledBox.getCenter(new THREE.Vector3());
+                            niyaz.position.x -= center.x;
+                            niyaz.position.z -= center.z;
+                            niyaz.position.y -= scaledBox.min.y;
+
+                            // Place inside fourth room (room4 centered at x=8.0)
+                            niyaz.position.x += 8.0;
+                            niyaz.position.z += -3.0;
+
+                            niyazBaseY = niyaz.position.y;
+                            niyaz.rotation.y = 0;
+
+                            niyaz.traverse(function (child) {
+                                if (child.isMesh) {
+                                    child.userData.isNiyaz = true;
+                                    if (child.material && child.material.name) {
+                                        child.userData.materialName = child.material.name;
+                                    }
+                                    ctx.interactives.push(child);
+                                }
+                            });
+
+                            ctx.scene.add(niyaz);
+                            niyazObject = niyaz;
+
+                            // ---- Text label above Niyaz ----
+                            var nzLabelCanvas = document.createElement('canvas');
+                            nzLabelCanvas.width = 1024;
+                            nzLabelCanvas.height = 256;
+                            var nzlctx = nzLabelCanvas.getContext('2d');
+                            nzlctx.font = 'bold 44px Arial';
+                            nzlctx.fillStyle = '#f5b53b';
+                            nzlctx.textAlign = 'center';
+                            nzlctx.textBaseline = 'middle';
+                            nzlctx.fillText('Нияз Бабай', 512, 80);
+                            nzlctx.font = '30px Arial';
+                            nzlctx.fillStyle = '#f5b53b';
+                            nzlctx.fillText('Главный по БМВ', 512, 180);
+                            var nzLabelTex = new THREE.CanvasTexture(nzLabelCanvas);
+                            var nzLabelMat = new THREE.SpriteMaterial({ map: nzLabelTex, transparent: true });
+                            var nzLabelSprite = new THREE.Sprite(nzLabelMat);
+                            nzLabelSprite.position.set(8.0, 1.6, -3.0);
+                            nzLabelSprite.scale.set(2.6, 0.65, 1);
+                            ctx.scene.add(nzLabelSprite);
+                            niyazLabel = nzLabelSprite;
+
+                            // ---- Mumbling text above Niyaz (BMW specialist + cigars) ----
+                            var niyazMumbles = [
+                                'оригинальные запчасти BMW дороже...',
+                                'для BMW только оригинал...',
+                                'двигатель N57 масло ест...',
+                                'турбина дует слабо...',
+                                'цепь ГРМ N47 растянулась...',
+                                'колодки на BMW пора менять...',
+                                'тормозные диски износились...',
+                                'подвеска гремит на кочках...',
+                                'амортизаторы передние потекли...',
+                                'рулевая рейка стучит...',
+                                'радиатор подтекает...',
+                                'стартер крутит вяло...',
+                                'генератор не заряжает...',
+                                'аккумулятор AGM дохнет...',
+                                'фильтр масляный забит...',
+                                'свечи зажигания пора менять...',
+                                'помпа начинает гудеть...',
+                                'термостат клинит...',
+                                'ремень ГРМ в трещинах...',
+                                'кондиционер заправить надо...',
+                                'фара ксеноновая моргает...',
+                                'диски R18, почти новые...',
+                                'машина хорошая, почти не битая...',
+                                'пробег честный, ну почти...',
+                                'есть и кубинские сигары... из-под полы...',
+                                'сигары с Кубы, настоящие...',
+                                'кубинские сигары, первый сорт...',
+                                'сигары кохиба, свежие...',
+                                'не кури, но сигары держи...',
+                                'сигары из-под полы, по-дружески...',
+                                'кохиба дороже, но того стоит...',
+                                'монте кристо, хочешь?...',
+                                'сигары спрятал, таможня рядом...',
+                                'бери сигару, остальное запчасти...',
+                                'для BMW только лучшее, и сигары тоже...'
+                            ];
+
+                            var nzMumbleCanvas = document.createElement('canvas');
+                            nzMumbleCanvas.width = 512;
+                            nzMumbleCanvas.height = 128;
+                            var nzctx = nzMumbleCanvas.getContext('2d');
+                            var nzMumbleTex = new THREE.CanvasTexture(nzMumbleCanvas);
+                            niyazMumbleMat = new THREE.SpriteMaterial({ map: nzMumbleTex, transparent: true, opacity: 0 });
+                            var nzMumbleSprite = new THREE.Sprite(niyazMumbleMat);
+                            nzMumbleSprite.position.set(8.0, 2.1, -3.0);
+                            nzMumbleSprite.scale.set(2.6, 0.65, 1);
+                            ctx.scene.add(nzMumbleSprite);
+                            niyazMumbleSpriteRef = nzMumbleSprite;
+
+                            function showNextNiyazMumble() {
+                                var text = niyazMumbles[Math.floor(Math.random() * niyazMumbles.length)];
+                                nzctx.clearRect(0, 0, 512, 128);
+                                nzctx.font = 'italic 24px Arial';
+                                nzctx.fillStyle = '#ffffff';
+                                nzctx.textAlign = 'center';
+                                nzctx.textBaseline = 'middle';
+
+                                // Wrap text into multiple lines so it fits the canvas
+                                var maxWidth = 480;
+                                var words = text.split(' ');
+                                var lines = [];
+                                var currentLine = '';
+                                for (var wi = 0; wi < words.length; wi++) {
+                                    var testLine = currentLine.length ? currentLine + ' ' + words[wi] : words[wi];
+                                    if (nzctx.measureText(testLine).width > maxWidth && currentLine) {
+                                        lines.push(currentLine);
+                                        currentLine = words[wi];
+                                    } else {
+                                        currentLine = testLine;
+                                    }
+                                }
+                                if (currentLine) lines.push(currentLine);
+
+                                var lineHeight = 26;
+                                var startY = 64 - ((lines.length - 1) * lineHeight) / 2;
+                                for (var li = 0; li < lines.length; li++) {
+                                    nzctx.fillText(lines[li], 256, startY + li * lineHeight);
+                                }
+                                nzMumbleTex.needsUpdate = true;
+
+                                niyazMumbleTargetOpacity = 0.9;
+
+                                setTimeout(function () {
+                                    niyazMumbleTargetOpacity = 0;
+                                }, 3000);
+
+                                var nextDelay = 5000 + Math.random() * 15000;
+                                niyazMumbleTimer = setTimeout(showNextNiyazMumble, nextDelay);
+                            }
+
+                            niyazMumbleTimer = setTimeout(showNextNiyazMumble, 4200);
+
+                            ctx.registerHit('isNiyaz', showNiyazDialog);
+                            ctx.registerHit('isNiyazPart', showNiyazPartDialog);
+                            ctx.registerHit('isNiyazCigar', showNiyazCigarDialog);
+
+                            scheduleNextNiyazWalk();
+
+                            // ---- Fill shelves with random goods ----
+                            placeNiyazGoods(ctx);
+                        }, undefined, function (err) {
+                            console.error('Niyaz OBJ load error:', err);
+                        });
+                    }, undefined, function (err) {
+                        console.error('Niyaz MTL load error:', err);
+                    });
+                },
+                update: function () {
+                    // Animate Niyaz mumble sprite fade
+                    if (niyazMumbleMat && niyazMumbleOpacity !== niyazMumbleTargetOpacity) {
+                        niyazMumbleOpacity += (niyazMumbleTargetOpacity - niyazMumbleOpacity) * 0.08;
+                        if (Math.abs(niyazMumbleOpacity - niyazMumbleTargetOpacity) < 0.01) niyazMumbleOpacity = niyazMumbleTargetOpacity;
+                        niyazMumbleMat.opacity = niyazMumbleOpacity;
+                    }
+
+                    // Niyaz walking animation
+                    if (niyazObject) {
+                        if (niyazWalking) {
+                            var ndx = niyazTargetX - niyazObject.position.x;
+                            var ndz = niyazTargetZ - niyazObject.position.z;
+                            var ndist = Math.sqrt(ndx * ndx + ndz * ndz);
+
+                            if (ndist < 0.05) {
+                                // Reached waypoint — stop and idle
+                                niyazWalking = false;
+                                niyazObject.rotation.z = 0; // straighten up
+                                scheduleNextNiyazWalk();
+                            } else {
+                                // Move toward target
+                                var nstepX = (ndx / ndist) * niyazWalkSpeed;
+                                var nstepZ = (ndz / ndist) * niyazWalkSpeed;
+                                niyazObject.position.x += nstepX;
+                                niyazObject.position.z += nstepZ;
+
+                                // Face direction of movement
+                                var nTargetAngle = Math.atan2(ndx, ndz);
+                                // Smooth rotation
+                                var nRotDiff = nTargetAngle - niyazCurrentRotation;
+                                while (nRotDiff > Math.PI) nRotDiff -= Math.PI * 2;
+                                while (nRotDiff < -Math.PI) nRotDiff += Math.PI * 2;
+                                niyazCurrentRotation += nRotDiff * 0.1;
+                                niyazObject.rotation.y = niyazCurrentRotation;
+
+                                // Walking bob — sway side to side + slight up/down
+                                niyazWalkPhase += 0.15;
+                                niyazObject.rotation.z = Math.sin(niyazWalkPhase) * 0.06;
+                                niyazObject.position.y = niyazBaseY + Math.abs(Math.sin(niyazWalkPhase)) * 0.03;
+                            }
+                        } else {
+                            // Idle — breathing
+                            niyazWalkPhase += 0.02;
+                            niyazObject.position.y = niyazBaseY + Math.sin(niyazWalkPhase) * 0.012;
+                        }
+
+                        // Sync label and mumble sprite position with Niyaz
+                        if (niyazLabel) {
+                            niyazLabel.position.x = niyazObject.position.x;
+                            niyazLabel.position.z = niyazObject.position.z;
+                        }
+                        if (niyazMumbleSpriteRef) {
+                            niyazMumbleSpriteRef.position.x = niyazObject.position.x;
+                            niyazMumbleSpriteRef.position.z = niyazObject.position.z;
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+</th:block>
+</body>
+</html>

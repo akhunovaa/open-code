@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="dialog">
+    <style>
+        #sergey-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 30; display: none;
+            background: rgba(10,15,30,0.97); border: 1px solid rgba(91,155,245,0.5);
+            border-radius: 12px; padding: 24px; max-width: 420px; width: 90%;
+            text-align: center; pointer-events: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,.6);
+            opacity: 1; transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        #sergey-dialog.fade-out { opacity: 0; transform: translate(-50%,-40%); pointer-events: none; }
+        #sergey-dialog h2 { color: #5b9bf5; font-size: 18px; margin-bottom: 12px; }
+        #sergey-dialog p { color: #ccc; font-size: 15px; line-height: 1.6; margin-bottom: 16px; }
+        #sergey-dialog .sergey-close {
+            background: rgba(21,101,192,0.5); border: 1px solid rgba(91,155,245,0.6);
+            color: #5b9bf5; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s;
+        }
+        #sergey-dialog .sergey-close:hover { background: rgba(21,101,192,0.8); color: #fff; }
+
+        #sergey-dialog .sergey-parts-btn {
+            background: rgba(21,101,192,0.4); border: 1px solid rgba(91,155,245,0.6);
+            color: #5b9bf5; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s; width: 100%;
+        }
+        #sergey-dialog .sergey-parts-btn:hover { background: rgba(21,101,192,0.7); color: #fff; }
+        #sergey-dialog .sergey-parts-btn:disabled { opacity: 0.6; cursor: wait; }
+
+        #sergey-parts-list {
+            max-height: 260px; overflow-y: auto; text-align: left;
+            margin-bottom: 12px; display: none;
+            border: 1px solid rgba(60,90,160,0.3); border-radius: 8px;
+            padding: 8px; background: rgba(10,15,30,0.6);
+        }
+        #sergey-parts-list .part-item {
+            display: flex; gap: 10px; align-items: center;
+            padding: 8px; border-bottom: 1px solid rgba(60,90,160,0.2);
+        }
+        #sergey-parts-list .part-item:last-child { border-bottom: none; }
+        #sergey-parts-list .part-item img {
+            width: 44px; height: 44px; border-radius: 6px; flex-shrink: 0; object-fit: cover;
+        }
+        #sergey-parts-list .part-item .part-info { flex: 1; min-width: 0; }
+        #sergey-parts-list .part-item .part-info .part-name { color: #9bc7ff; font-size: 13px; font-weight: bold; }
+        #sergey-parts-list .part-item .part-info .part-desc { color: #8a9; font-size: 12px; line-height: 1.3; }
+        #sergey-parts-list .part-item .part-price { color: #f5b53b; font-size: 13px; font-weight: bold; white-space: nowrap; }
+        #sergey-parts-list .parts-empty { color: #8a9; font-size: 13px; text-align: center; padding: 12px; }
+
+        #part-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 30; display: none;
+            background: rgba(10,15,30,0.97); border: 1px solid rgba(120,200,120,0.5);
+            border-radius: 12px; padding: 24px; max-width: 420px; width: 90%;
+            text-align: center; pointer-events: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,.6);
+            opacity: 1; transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        #part-dialog.fade-out { opacity: 0; transform: translate(-50%,-40%); pointer-events: none; }
+        #part-dialog h2 { color: #78c878; font-size: 18px; margin-bottom: 12px; }
+        #part-dialog p { color: #ccc; font-size: 15px; line-height: 1.6; margin-bottom: 12px; }
+        #part-dialog .part-price { color: #f5b53b; font-size: 20px; font-weight: bold; margin: 12px 0; }
+        #part-dialog .part-close {
+            background: rgba(120,200,120,0.15); border: 1px solid rgba(120,200,120,0.6);
+            color: #78c878; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s;
+        }
+        #part-dialog .part-close:hover { background: rgba(120,200,120,0.35); color: #fff; }
+    </style>
+
+    <div id="sergey-dialog">
+        <h2>Сергей Нечаев</h2>
+        <p><b>Главный Скиф по Автомобилям</b><br><br>
+        — Привет! Я Сергей. В автомобилях я человек опытный.<br><br>
+        — Расскажу многое полезное о запчастях для них. Спрашивай когда захочешь!</p>
+        <div id="sergey-parts-list"></div>
+        <div style="margin-bottom: 12px;">
+            <button class="sergey-parts-btn" id="parts-btn" onclick="askPartsList()">🔧 Что есть на продажу?</button>
+        </div>
+        <button class="sergey-close" onclick="closeSergeyDialog()">Закрыть</button>
+    </div>
+
+    <div id="part-dialog">
+        <h2 id="part-dialog-title">Автозапчасть</h2>
+        <p id="part-dialog-desc">—</p>
+        <p id="part-dialog-price"></p>
+        <button class="part-close" onclick="closePartDialog()">Закрыть</button>
+    </div>
+</th:block>
+
+<th:block th:fragment="logic">
+    <script th:inline="none">
+        (function () {
+            // ============================================================
+            // ROOM 3 (right) — Steve "Сергей Нечаев" (car expert)
+            // ============================================================
+
+            var sergeyObject = null;
+            var sergeyLabel = null;
+            var sergeyMumbleSpriteRef = null;
+            var sergeyMumbleMat = null;
+            var sergeyMumbleOpacity = 0;
+            var sergeyMumbleTargetOpacity = 0;
+            var sergeyMumbleTimer = null;
+            var sergeyBaseY = 0;
+
+            // Waypoints inside third room (centered at x=4.0, z spans 0..-5.26)
+            var sergeyWaypoints = [];
+            sergeyWaypoints.push({ x: 4.0, z: -4.0 });
+            sergeyWaypoints.push({ x: 4.8, z: -2.5 });
+            sergeyWaypoints.push({ x: 3.4, z: -1.5 });
+            sergeyWaypoints.push({ x: 4.5, z: -3.5 });
+            sergeyWaypoints.push({ x: 3.1, z: -4.2 });
+            sergeyWaypoints.push({ x: 4.0, z: -2.0 });
+            sergeyWaypoints.push({ x: 4.9, z: -1.0 });
+            sergeyWaypoints.push({ x: 3.6, z: -3.0 });
+
+            var sergeyCurrentWaypoint = 0;
+            var sergeyWalkSpeed = 0.04;
+            var sergeyWalkPhase = 0;
+            var sergeyWalking = false;
+            var sergeyIdleTimer = null;
+            var sergeyTargetX = 4.0, sergeyTargetZ = -4.0;
+            var sergeyCurrentRotation = 0;
+
+            function startSergeyWalk() {
+                sergeyCurrentWaypoint = (sergeyCurrentWaypoint + 1) % sergeyWaypoints.length;
+                var wp = sergeyWaypoints[sergeyCurrentWaypoint];
+                sergeyTargetX = wp.x;
+                sergeyTargetZ = wp.z;
+                sergeyWalking = true;
+            }
+
+            function scheduleNextSergeyWalk() {
+                var delay = 4000 + Math.random() * 8000; // 4-12 sec idle
+                sergeyIdleTimer = setTimeout(startSergeyWalk, delay);
+            }
+
+            function showSergeyDialog() {
+                var dlg = document.getElementById('sergey-dialog');
+                dlg.classList.remove('fade-out');
+                dlg.style.display = 'block';
+            }
+
+            window.closeSergeyDialog = function () {
+                var dlg = document.getElementById('sergey-dialog');
+                dlg.classList.add('fade-out');
+                setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+            };
+
+            function showPartDialog(mesh) {
+                var dlg = document.getElementById('part-dialog');
+                dlg.classList.remove('fade-out');
+                document.getElementById('part-dialog-title').textContent = mesh.userData.partName;
+                document.getElementById('part-dialog-desc').textContent = '— ' + mesh.userData.partDesc + '.';
+                document.getElementById('part-dialog-price').className = 'part-price';
+                document.getElementById('part-dialog-price').textContent =
+                    mesh.userData.partPrice.toLocaleString('ru-RU') + ' ₽';
+                dlg.style.display = 'block';
+            }
+
+            window.closePartDialog = function () {
+                var dlg = document.getElementById('part-dialog');
+                dlg.classList.add('fade-out');
+                setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+            };
+
+            window.askPartsList = function () {
+                var btn = document.getElementById('parts-btn');
+                var listEl = document.getElementById('sergey-parts-list');
+                if (!btn || !listEl) return;
+                btn.disabled = true;
+                btn.textContent = '⏳ Загружаю каталог...';
+                listEl.style.display = 'block';
+                listEl.innerHTML = '<div class="parts-empty">Запрашиваю каталог у поставщиков...</div>';
+
+                fetch('/api/car-parts')
+                    .then(function (r) {
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.json();
+                    })
+                    .then(function (parts) {
+                        if (!parts || parts.length === 0) {
+                            listEl.innerHTML = '<div class="parts-empty">Пусто — все раскупили!</div>';
+                            return;
+                        }
+                        var html = '';
+                        for (var i = 0; i < parts.length; i++) {
+                            var p = parts[i];
+                            var price = p.price.toLocaleString('ru-RU') + ' ₽';
+                            html += '<div class="part-item">' +
+                                '<img src="' + p.image + '" alt="' + p.name + '">' +
+                                '<div class="part-info"><div class="part-name">' + p.name + '</div>' +
+                                '<div class="part-desc">' + p.description + '</div></div>' +
+                                '<div class="part-price">' + price + '</div>' +
+                                '</div>';
+                        }
+                        listEl.innerHTML = html;
+                    })
+                    .catch(function (err) {
+                        listEl.innerHTML = '<div class="parts-empty">Ошибка каталога: ' + err.message + '. Попробуй ещё раз.</div>';
+                    })
+                    .finally(function () {
+                        btn.disabled = false;
+                        btn.textContent = '🔧 Что есть на продажу?';
+                    });
+            };
+
+            // ---- Car parts on Sergey's shelves ----
+            var carPartNames = [
+                ['Тормозные колодки', 'передние, керамические, почти новые'],
+                ['Тормозные диски', 'вентилируемые, комплект 2 шт'],
+                ['Свечи зажигания', 'иридиевые, комплект 4 шт'],
+                ['Масляный фильтр', 'оригинальный, подходит на все модели'],
+                ['Воздушный фильтр', 'панельный, для инжектора'],
+                ['Салонный фильтр', 'угольный, от пыли и запахов'],
+                ['Амортизатор', 'передний, газомасляный'],
+                ['Пружина подвески', 'усиленная, задняя'],
+                ['Шаровая опора', 'для рычага, комплект 2 шт'],
+                ['Рулевой наконечник', 'правая сторона, новый'],
+                ['Сайлентблок', 'передний рычаг, полиуретан'],
+                ['Ремень ГРМ', 'комплект с роликами'],
+                ['Цепь ГРМ', 'усиленная, с успокоителем'],
+                ['Помпа', 'водяной насос, с крыльчаткой'],
+                ['Термостат', '82 градуса, для зимы'],
+                ['Радиатор', 'медный, двухрядный'],
+                ['Аккумулятор', '60 Ач, с гарантией'],
+                ['Стартер', 'восстановленный, обслуженный'],
+                ['Генератор', '105 А, новый'],
+                ['Фара', 'левая, с ксеноном'],
+                ['Дворники', 'бескаркасные, 60 см'],
+                ['Колпак на колесо', 'литой, 16 дюймов'],
+                ['Зеркало боковое', 'правое, с подогревом'],
+                ['Бампер', 'передний, с креплениями'],
+                ['Рулевая рейка', 'с усилителем, б/у отличное']
+            ];
+
+            function placeCarParts(ctx) {
+                // Shelf levels inside Sergey's room (room3 at x=4.0)
+                // Only the left/right walls have shelf boards: they span x=±(1.02..1.56) at Y≈0.78,1.38,1.98
+                var shelfYs = [0.78, 1.38, 1.98];
+                // z positions along the shelf boards (left/right walls)
+                var zPositions = [-4.2, -3.4, -2.6, -1.8, -1.0];
+                var leftXs = [];
+                var rightXs = [];
+
+                for (var zi = 0; zi < zPositions.length; zi++) {
+                    // left shelf board x range in Sergey's room: 4.0-1.5 .. 4.0-1.08
+                    leftXs.push({ x: 2.5 + Math.random() * 0.35, z: zPositions[zi] });
+                    // right shelf board x range: 4.0+1.08 .. 4.0+1.5
+                    rightXs.push({ x: 5.08 + Math.random() * 0.35, z: zPositions[zi] });
+                }
+
+                var spots = leftXs.concat(rightXs);
+
+                for (var si = 0; si < spots.length; si++) {
+                    var shelfY = shelfYs[si % shelfYs.length];
+                    var spot = spots[si];
+
+                    // Random size box representing a car part
+                    var w = 0.18 + Math.random() * 0.14;
+                    var h = 0.12 + Math.random() * 0.12;
+                    var d = 0.12 + Math.random() * 0.10;
+                    var geo = new THREE.BoxGeometry(w, h, d);
+
+                    var palette = [0xcc4444, 0x4488cc, 0x44aa55, 0xbb8844, 0x8888cc, 0xaa5555, 0x55aa88];
+                    var mat = new THREE.MeshPhongMaterial({
+                        color: palette[Math.floor(Math.random() * palette.length)],
+                        flatShading: true
+                    });
+                    var part = new THREE.Mesh(geo, mat);
+                    part.position.set(spot.x, shelfY + h / 2, spot.z);
+
+                    // Random part name (unique per box)
+                    var nameIdx = Math.floor(Math.random() * carPartNames.length);
+                    var partData = carPartNames[nameIdx];
+
+                    part.userData.isCarPart = true;
+                    part.userData.partName = partData[0];
+                    part.userData.partDesc = partData[1];
+                    part.userData.partPrice = 500 + Math.floor(Math.random() * 50000);
+
+                    ctx.interactives.push(part);
+                    ctx.scene.add(part);
+                }
+            }
+
+            window.Room3DComponents.push({
+                id: 'sergey',
+                load: function (ctx) {
+                    // ---- Load Steve (Sergey Nechaev) inside the right room ----
+                    var sergeyMtlLoader = new THREE.MTLLoader();
+                    sergeyMtlLoader.setPath('/steeve/');
+                    sergeyMtlLoader.load('minecraft_-_steve.mtl', function (sergeyMats) {
+                        sergeyMats.preload();
+
+                        var sergeyObjLoader = new THREE.OBJLoader();
+                        sergeyObjLoader.setMaterials(sergeyMats);
+                        sergeyObjLoader.setPath('/steeve/');
+                        sergeyObjLoader.load('minecraft_-_steve.obj', function (sergey) {
+                            // Sergey bounds are ~16x32x8 units, scale to ~1.2m tall (same as Alexey)
+                            var box = new THREE.Box3().setFromObject(sergey);
+                            var size = box.getSize(new THREE.Vector3());
+                            var maxDim = Math.max(size.x, size.y, size.z);
+                            var scale = 1.2 / maxDim;
+                            sergey.scale.setScalar(scale);
+
+                            // Reposition: center horizontally, place on floor
+                            var scaledBox = new THREE.Box3().setFromObject(sergey);
+                            var center = scaledBox.getCenter(new THREE.Vector3());
+                            sergey.position.x -= center.x;
+                            sergey.position.z -= center.z;
+                            sergey.position.y -= scaledBox.min.y;
+
+                            // Place inside third room (room3 centered at x=4.0)
+                            sergey.position.x += 4.0;
+                            sergey.position.z += -3.0;
+
+                            // Store base Y for breathing animation
+                            sergeyBaseY = sergey.position.y;
+                            sergey.rotation.y = 0;
+
+                            // Register meshes for click interaction
+                            sergey.traverse(function (child) {
+                                if (child.isMesh) {
+                                    child.userData.isSergey = true;
+                                    if (child.material && child.material.name) {
+                                        child.userData.materialName = child.material.name;
+                                    }
+                                    ctx.interactives.push(child);
+                                }
+                            });
+
+                            ctx.scene.add(sergey);
+                            sergeyObject = sergey;
+
+                            // ---- Text label above Sergey ----
+                            var sgLabelCanvas = document.createElement('canvas');
+                            sgLabelCanvas.width = 1024;
+                            sgLabelCanvas.height = 256;
+                            var sglctx = sgLabelCanvas.getContext('2d');
+                            sglctx.font = 'bold 44px Arial';
+                            sglctx.fillStyle = '#f5b53b';
+                            sglctx.textAlign = 'center';
+                            sglctx.textBaseline = 'middle';
+                            sglctx.fillText('Сергей Нечаев', 512, 80);
+                            sglctx.font = '30px Arial';
+                            sglctx.fillStyle = '#f5b53b';
+                            sglctx.fillText('Главный Скиф по Автомобилям', 512, 180);
+                            var sgLabelTex = new THREE.CanvasTexture(sgLabelCanvas);
+                            var sgLabelMat = new THREE.SpriteMaterial({ map: sgLabelTex, transparent: true });
+                            var sgLabelSprite = new THREE.Sprite(sgLabelMat);
+                            sgLabelSprite.position.set(4.0, 1.6, -3.0);
+                            sgLabelSprite.scale.set(2.6, 0.65, 1);
+                            ctx.scene.add(sgLabelSprite);
+                            sergeyLabel = sgLabelSprite;
+
+                            // ---- Mumbling text above Sergey (car expert) ----
+                            var sergeyMumbles = [
+                                'оригинальные запчасти дороже...',
+                                'китайский аналог пойдёт...',
+                                'масло менять каждые 10 тысяч...',
+                                'двигатель масло ест...',
+                                'колодки пора менять...',
+                                'тормозные диски износились...',
+                                'подвеска гремит...',
+                                'фильтр воздушный забит...',
+                                'свечи зажигания пора менять...',
+                                'цепь растянулась...',
+                                'ремень ГРМ пора менять...',
+                                'антифриз подтекает...',
+                                'аккумулятор дохнет...',
+                                'стартер крутит плохо...',
+                                'кондиционер заправить надо...',
+                                'резина зимняя уже не та...',
+                                'бампер сколы...',
+                                'кузов ржавеет...',
+                                'сцепление буксует...',
+                                'коробка воет...',
+                                'датчик кислорода ошибку даёт...',
+                                'глушитель прогорел...',
+                                'рулевая рейка стучит...',
+                                'машина хорошая, почти не битая...',
+                                'пробег честный, ну почти...'
+                            ];
+
+                            var sgMumbleCanvas = document.createElement('canvas');
+                            sgMumbleCanvas.width = 512;
+                            sgMumbleCanvas.height = 128;
+                            var sgctx = sgMumbleCanvas.getContext('2d');
+                            var sgMumbleTex = new THREE.CanvasTexture(sgMumbleCanvas);
+                            sergeyMumbleMat = new THREE.SpriteMaterial({ map: sgMumbleTex, transparent: true, opacity: 0 });
+                            var sgMumbleSprite = new THREE.Sprite(sergeyMumbleMat);
+                            sgMumbleSprite.position.set(4.0, 2.1, -3.0);
+                            sgMumbleSprite.scale.set(2.6, 0.65, 1);
+                            ctx.scene.add(sgMumbleSprite);
+                            sergeyMumbleSpriteRef = sgMumbleSprite;
+
+                            function showNextSergeyMumble() {
+                                var text = sergeyMumbles[Math.floor(Math.random() * sergeyMumbles.length)];
+                                sgctx.clearRect(0, 0, 512, 128);
+                                sgctx.font = 'italic 24px Arial';
+                                sgctx.fillStyle = '#ffffff';
+                                sgctx.textAlign = 'center';
+                                sgctx.textBaseline = 'middle';
+
+                                // Wrap text into multiple lines so it fits the canvas
+                                var maxWidth = 480;
+                                var words = text.split(' ');
+                                var lines = [];
+                                var currentLine = '';
+                                for (var wi = 0; wi < words.length; wi++) {
+                                    var testLine = currentLine.length ? currentLine + ' ' + words[wi] : words[wi];
+                                    if (sgctx.measureText(testLine).width > maxWidth && currentLine) {
+                                        lines.push(currentLine);
+                                        currentLine = words[wi];
+                                    } else {
+                                        currentLine = testLine;
+                                    }
+                                }
+                                if (currentLine) lines.push(currentLine);
+
+                                var lineHeight = 26;
+                                var startY = 64 - ((lines.length - 1) * lineHeight) / 2;
+                                for (var li = 0; li < lines.length; li++) {
+                                    sgctx.fillText(lines[li], 256, startY + li * lineHeight);
+                                }
+                                sgMumbleTex.needsUpdate = true;
+
+                                sergeyMumbleTargetOpacity = 0.9;
+
+                                setTimeout(function () {
+                                    sergeyMumbleTargetOpacity = 0;
+                                }, 3000);
+
+                                var nextDelay = 5000 + Math.random() * 15000;
+                                sergeyMumbleTimer = setTimeout(showNextSergeyMumble, nextDelay);
+                            }
+
+                            sergeyMumbleTimer = setTimeout(showNextSergeyMumble, 4500);
+
+                            ctx.registerHit('isSergey', showSergeyDialog);
+                            ctx.registerHit('isCarPart', showPartDialog);
+
+                            scheduleNextSergeyWalk();
+
+                            // ---- Fill shelves with random car parts ----
+                            placeCarParts(ctx);
+                        }, undefined, function (err) {
+                            console.error('Sergey OBJ load error:', err);
+                        });
+                    }, undefined, function (err) {
+                        console.error('Sergey MTL load error:', err);
+                    });
+                },
+                update: function () {
+                    // Animate Sergey mumble sprite fade
+                    if (sergeyMumbleMat && sergeyMumbleOpacity !== sergeyMumbleTargetOpacity) {
+                        sergeyMumbleOpacity += (sergeyMumbleTargetOpacity - sergeyMumbleOpacity) * 0.08;
+                        if (Math.abs(sergeyMumbleOpacity - sergeyMumbleTargetOpacity) < 0.01) sergeyMumbleOpacity = sergeyMumbleTargetOpacity;
+                        sergeyMumbleMat.opacity = sergeyMumbleOpacity;
+                    }
+
+                    // Sergey (car expert) walking animation
+                    if (sergeyObject) {
+                        if (sergeyWalking) {
+                            var sgdx = sergeyTargetX - sergeyObject.position.x;
+                            var sgdz = sergeyTargetZ - sergeyObject.position.z;
+                            var sgdist = Math.sqrt(sgdx * sgdx + sgdz * sgdz);
+
+                            if (sgdist < 0.05) {
+                                // Reached waypoint — stop and idle
+                                sergeyWalking = false;
+                                sergeyObject.rotation.z = 0; // straighten up
+                                scheduleNextSergeyWalk();
+                            } else {
+                                // Move toward target
+                                var sgstepX = (sgdx / sgdist) * sergeyWalkSpeed;
+                                var sgstepZ = (sgdz / sgdist) * sergeyWalkSpeed;
+                                sergeyObject.position.x += sgstepX;
+                                sergeyObject.position.z += sgstepZ;
+
+                                // Face direction of movement
+                                var sgTargetAngle = Math.atan2(sgdx, sgdz);
+                                // Smooth rotation
+                                var sgRotDiff = sgTargetAngle - sergeyCurrentRotation;
+                                while (sgRotDiff > Math.PI) sgRotDiff -= Math.PI * 2;
+                                while (sgRotDiff < -Math.PI) sgRotDiff += Math.PI * 2;
+                                sergeyCurrentRotation += sgRotDiff * 0.1;
+                                sergeyObject.rotation.y = sergeyCurrentRotation;
+
+                                // Walking bob — sway side to side + slight up/down
+                                sergeyWalkPhase += 0.15;
+                                sergeyObject.rotation.z = Math.sin(sergeyWalkPhase) * 0.06;
+                                sergeyObject.position.y = sergeyBaseY + Math.abs(Math.sin(sergeyWalkPhase)) * 0.03;
+                            }
+                        } else {
+                            // Idle — breathing
+                            sergeyWalkPhase += 0.02;
+                            sergeyObject.position.y = sergeyBaseY + Math.sin(sergeyWalkPhase) * 0.012;
+                        }
+
+                        // Sync label and mumble sprite position with Sergey
+                        if (sergeyLabel) {
+                            sergeyLabel.position.x = sergeyObject.position.x;
+                            sergeyLabel.position.z = sergeyObject.position.z;
+                        }
+                        if (sergeyMumbleSpriteRef) {
+                            sergeyMumbleSpriteRef.position.x = sergeyObject.position.x;
+                            sergeyMumbleSpriteRef.position.z = sergeyObject.position.z;
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+</th:block>
+</body>
+</html>

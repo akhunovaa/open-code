@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="core">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { overflow: hidden; background: #0a0f1a; font-family: 'Segoe UI', Arial, sans-serif; color: #c8d8f5; }
+        canvas { display: block; }
+
+        #hud { position: fixed; top: 0; left: 0; width: 100%; pointer-events: none; z-index: 10; }
+        #topbar {
+            background: rgba(10,15,30,0.9); backdrop-filter: blur(8px);
+            padding: 10px 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+            border-bottom: 1px solid rgba(60,90,160,0.4); pointer-events: auto;
+        }
+        #topbar h1 { color: #5b9bf5; font-size: 16px; white-space: nowrap; }
+        .btn {
+            background: rgba(21,101,192,0.4); border: 1px solid rgba(91,155,245,0.6);
+            color: #5b9bf5; padding: 5px 12px; border-radius: 4px; cursor: pointer;
+            font-size: 12px; pointer-events: auto; transition: all 0.15s;
+        }
+        .btn:hover { background: rgba(21,101,192,0.7); color: #fff; }
+        .btn.purple { background: rgba(81,45,168,0.3); border-color: rgba(149,117,205,0.6); color: #9575cd; }
+        .btn.purple:hover { background: rgba(81,45,168,0.6); color: #fff; }
+
+        #info-panel {
+            position: fixed; top: 60px; right: 16px; width: 360px; max-width: 90vw;
+            background: rgba(10,15,30,0.95); backdrop-filter: blur(8px);
+            border: 1px solid rgba(60,90,160,0.3); border-radius: 8px;
+            padding: 16px; z-index: 10; pointer-events: auto;
+            max-height: 85vh; overflow-y: auto; display: none;
+        }
+        #info-panel h2 { color: #5b9bf5; font-size: 14px; margin-bottom: 8px; }
+        #info-panel .field { display: flex; justify-content: space-between; margin: 3px 0; font-size: 12px; }
+        #info-panel .field .k { color: #8a9; }
+        #info-panel .field .v { color: #ccc; word-break: break-all; text-align: right; max-width: 240px; }
+        #info-panel .close-btn {
+            position: absolute; top: 8px; right: 8px;
+            width: 22px; height: 22px; line-height: 20px; text-align: center;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            color: #888; border-radius: 4px; cursor: pointer; font-size: 14px;
+            transition: all 0.15s; pointer-events: auto;
+        }
+        #info-panel .close-btn:hover { background: rgba(255,83,80,0.4); border-color: rgba(239,83,80,0.6); color: #fff; }
+
+        #crosshair {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            width: 20px; height: 20px; pointer-events: none; z-index: 5; display: none;
+        }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(91,155,245,0.7); }
+        #crosshair::before { left: 9px; top: 0; width: 2px; height: 20px; }
+        #crosshair::after { top: 9px; left: 0; height: 2px; width: 20px; }
+
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 20;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
+        #overlay h2 { color: #5b9bf5; font-size: 28px; margin-bottom: 12px; }
+        #overlay p { color: #888; font-size: 14px; line-height: 1.6; text-align: center; max-width: 500px; }
+        #overlay .controls { color: #5b9bf5; font-size: 13px; margin-top: 20px; }
+        #overlay .controls div { margin: 4px 0; }
+
+        #loading {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 15; color: #5b9bf5; font-size: 18px; display: none;
+        }
+
+        #mobile-controls { display: none; position: fixed; inset: auto 16px 18px; z-index: 4; justify-content: space-between; align-items: end; pointer-events: none; }
+        #mobile-controls .pad { display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(2, 48px); gap: 5px; }
+        #mobile-controls button { width: 48px; height: 48px; padding: 0; opacity: .85; pointer-events: auto; touch-action: manipulation; border: 1px solid #3c70b6; border-radius: 4px; background: #10284b; color: #9bc7ff; font-size: 18px; -webkit-user-select: none; user-select: none; }
+        #mobile-controls .empty { visibility: hidden; }
+        #mobile-controls .vertical { display: flex; gap: 5px; }
+        @media (max-width: 700px), (pointer: coarse) {
+            #mobile-controls { display: flex; }
+            #overlay h2 { font-size: 22px; }
+            #overlay p { padding: 0 24px; font-size: 13px; }
+        }
+    </style>
+
+    <div id="overlay">
+        <h2>3D Комната — room.obj</h2>
+        <p>Интерактивная 3D-модель трёх комнат с текстурами<br>
+        Слева — комната Алексея Дементьева, Супер Пупер Биток Трейдера<br>
+        Справа — комната Сергея Нечаева, Главного Скифа по Автомобилям<br>
+        Дальше справа — комната Нияза Бабая, Главного по БМВ<br>
+        Первый взгляд от первого лица: ходите по комнатам и изучайте интерьер</p>
+        <div class="controls">
+            <div>🖱️ <b>Клик по экрану</b> — войти в режим обзора (захват мыши)</div>
+            <div>⌨️ <b>W A S D</b> — перемещение | <b>Мышь</b> — осмотр</div>
+            <div>⬆️ <b>Пробел</b> — вверх | <b>C</b> — вниз</div>
+            <div>⌨️ <b>ESC</b> — освободить мышь для кнопок сверху</div>
+        </div>
+    </div>
+
+    <div id="loading">Загрузка модели...</div>
+
+    <div id="hud">
+        <div id="topbar">
+            <h1>🏠 3D Комната</h1>
+            <button class="btn purple" onclick="resetCamera()">Reset Camera</button>
+        </div>
+    </div>
+
+    <div id="crosshair"></div>
+
+    <div id="info-panel">
+        <span class="close-btn" onclick="closePanel('info-panel')">&times;</span>
+        <h2 id="info-title">—</h2>
+        <div id="info-fields"></div>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="pad"><span class="empty"></span><button data-key="KeyW">▲</button><span class="empty"></span><button data-key="KeyA">◀</button><button data-key="KeyS">▼</button><button data-key="KeyD">▶</button></div>
+        <div class="vertical"><button data-key="Space">↑</button><button data-key="KeyC">↓</button></div>
+    </div>
+
+    <script th:src="@{/vendor/three.min.js}"></script>
+    <script th:src="@{/vendor/OBJLoader.js}"></script>
+    <script th:src="@{/vendor/MTLLoader.js}"></script>
+
+    <script th:inline="none">
+        // ============================================================
+        // ROOM3D CORE — scene, camera, controls, raycast, animation
+        // Components register into window.Room3DComponents via load(ctx)
+        // ============================================================
+
+        window.Room3DComponents = window.Room3DComponents || [];
+
+        var touchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.userAgent.indexOf('Mobile') !== -1);
+
+        function closeOverlay() {
+            var ov = document.getElementById('overlay');
+            if (ov && ov.style.display !== 'none') {
+                ov.style.display = 'none';
+                try { document.body.style.touchAction = 'none'; } catch (e) {}
+            }
+        }
+
+        window.closePanel = function (id) {
+            document.getElementById(id).style.display = 'none';
+        };
+
+        (function () {
+            var scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x0a0f1a, 15, 60);
+
+            var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+            camera.position.set(0, 2.2, 5);
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = 0;
+
+            var renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            renderer.shadowMap.enabled = false;
+            document.body.appendChild(renderer.domElement);
+
+            // Neutral ambient — enough to see colors without yellow tint
+            scene.add(new THREE.AmbientLight(0x8090b0, 0.55));
+
+            // Ceiling light — center of room, near ceiling
+            var ceilingLight = new THREE.PointLight(0xffffff, 0.8, 12, 1.5);
+            ceilingLight.position.set(0, 2.6, -2.6);
+            scene.add(ceilingLight);
+
+            // Cool fill near window
+            var windowLight = new THREE.PointLight(0xa0b0d0, 0.4, 8, 2);
+            windowLight.position.set(0, 1.5, -4.8);
+            scene.add(windowLight);
+
+            // ---- Green grass lawn in front of the trading rooms ----
+            var grassCanvas = document.createElement('canvas');
+            grassCanvas.width = 256;
+            grassCanvas.height = 256;
+            var gctx = grassCanvas.getContext('2d');
+            gctx.fillStyle = '#2e7d32';
+            gctx.fillRect(0, 0, 256, 256);
+            for (var gi = 0; gi < 900; gi++) {
+                var gshade = 70 + Math.random() * 90;
+                gctx.fillStyle = 'rgb(' + Math.floor(gshade * 0.7) + ',' + Math.floor(90 + Math.random() * 80) + ',' + Math.floor(gshade * 0.5) + ')';
+                var gx = Math.random() * 256;
+                var gy = Math.random() * 256;
+                gctx.fillRect(gx, gy, 2 + Math.random() * 2, 1 + Math.random() * 2);
+            }
+            var grassTex = new THREE.CanvasTexture(grassCanvas);
+            grassTex.wrapS = THREE.RepeatWrapping;
+            grassTex.wrapT = THREE.RepeatWrapping;
+            grassTex.repeat.set(24, 16);
+            var lawnGeo = new THREE.PlaneGeometry(36, 16);
+            lawnGeo.rotateX(-Math.PI / 2);
+            var lawn = new THREE.Mesh(lawnGeo, new THREE.MeshPhongMaterial({ map: grassTex, flatShading: true }));
+            lawn.position.set(2, -0.01, -2.6);
+            scene.add(lawn);
+
+            // ---- Shared context for components ----
+            var ctx = {
+                scene: scene,
+                camera: camera,
+                renderer: renderer,
+                interactives: [],
+                rooms: {},
+                raycastHandlers: {},
+                registerHit: function (flag, fn) {
+                    this.raycastHandlers[flag] = fn;
+                },
+                showInfoPanel: function (matName, mesh) {
+                    var panel = document.getElementById('info-panel');
+                    document.getElementById('info-title').textContent = 'Материал: ' + matName;
+
+                    var fields = '';
+                    fields += '<div class="field"><span class="k">Материал</span><span class="v">' + matName + '</span></div>';
+                    if (mesh.geometry && mesh.geometry.attributes && mesh.geometry.attributes.position) {
+                        fields += '<div class="field"><span class="k">Вершины</span><span class="v">' + mesh.geometry.attributes.position.count + '</span></div>';
+                    }
+                    if (mesh.material && mesh.material.map) {
+                        fields += '<div class="field"><span class="k">Текстура</span><span class="v">' + (mesh.material.map.image ? mesh.material.map.image.src.split('/').pop() : '—') + '</span></div>';
+                    }
+                    document.getElementById('info-fields').innerHTML = fields;
+                    panel.style.display = 'block';
+                }
+            };
+            window.Room3D = ctx;
+
+            // ---- First-Person Controls ----
+            var moveState = { forward: false, backward: false, left: false, right: false, up: false, down: false };
+            var moveSpeed = 0.08;
+            var pitch = -0.15, yaw = 0;
+            var pointerLocked = false;
+            var started = false;
+
+            var overlay = document.getElementById('overlay');
+            var crosshair = document.getElementById('crosshair');
+
+            function startScene() {
+                started = true;
+                overlay.style.display = 'none';
+                document.body.style.touchAction = 'none';
+                if (!touchDevice && renderer.domElement.requestPointerLock) {
+                    try { renderer.domElement.requestPointerLock(); } catch (e) {}
+                }
+            }
+
+            overlay.addEventListener('click', startScene);
+            overlay.addEventListener('touchstart', function (e) { e.preventDefault(); startScene(); }, { passive: false });
+            document.getElementById('overlay').addEventListener('pointerdown', function (e) { e.preventDefault(); startScene(); }, { passive: false });
+
+            document.addEventListener('pointerlockchange', function () {
+                pointerLocked = document.pointerLockElement === renderer.domElement;
+                if (pointerLocked) started = true;
+                overlay.style.display = (!pointerLocked && !started) ? 'flex' : 'none';
+                crosshair.style.display = pointerLocked ? 'block' : 'none';
+            });
+
+            document.addEventListener('mousemove', function (e) {
+                if (!pointerLocked) return;
+                yaw -= e.movementX * 0.002;
+                pitch -= e.movementY * 0.002;
+                pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, pitch));
+            });
+
+            document.addEventListener('keydown', function (e) {
+                switch (e.code) {
+                    case 'KeyW': moveState.forward = true; break;
+                    case 'KeyS': moveState.backward = true; break;
+                    case 'KeyA': moveState.left = true; break;
+                    case 'KeyD': moveState.right = true; break;
+                    case 'Space': moveState.up = true; break;
+                    case 'KeyC': moveState.down = true; break;
+                    case 'Escape':
+                        if (pointerLocked) document.exitPointerLock();
+                        break;
+                }
+            });
+
+            document.addEventListener('keyup', function (e) {
+                switch (e.code) {
+                    case 'KeyW': moveState.forward = false; break;
+                    case 'KeyS': moveState.backward = false; break;
+                    case 'KeyA': moveState.left = false; break;
+                    case 'KeyD': moveState.right = false; break;
+                    case 'Space': moveState.up = false; break;
+                    case 'KeyC': moveState.down = false; break;
+                }
+            });
+
+            // Mobile touch look — swipe anywhere on screen
+            var touchX = 0, touchY = 0, lookActive = false;
+            var touchStartX = 0, touchStartY = 0, touchMoved = false;
+            renderer.domElement.style.touchAction = 'none';
+
+            function lookStart(x, y) { touchX = x; touchY = y; lookActive = true; touchStartX = x; touchStartY = y; touchMoved = false; }
+            function lookMove(x, y) {
+                if (!lookActive) return;
+                if (Math.abs(x - touchStartX) > 8 || Math.abs(y - touchStartY) > 8) touchMoved = true;
+                yaw += (x - touchX) * 0.005;
+                pitch = Math.max(-1.4, Math.min(1.4, pitch - (y - touchY) * 0.005));
+                touchX = x; touchY = y;
+            }
+            function lookEnd() { lookActive = false; }
+
+            renderer.domElement.addEventListener('touchstart', function (e) {
+                e.preventDefault();
+                if (!started) startScene();
+                var t = e.touches[0];
+                lookStart(t.clientX, t.clientY);
+            }, { passive: false });
+            renderer.domElement.addEventListener('touchmove', function (e) {
+                e.preventDefault();
+                var t = e.touches[0];
+                lookMove(t.clientX, t.clientY);
+            }, { passive: false });
+            renderer.domElement.addEventListener('touchend', function (e) {
+                lookEnd();
+                // Tap detection — if finger didn't move much, treat as click
+                if (!touchMoved && started) {
+                    var t = e.changedTouches[0];
+                    doRaycast(t.clientX, t.clientY);
+                }
+            }, { passive: false });
+            renderer.domElement.addEventListener('touchcancel', lookEnd);
+
+            // Pointer events for unified mouse/touch
+            renderer.domElement.addEventListener('pointerdown', function (e) {
+                if (!started) { startScene(); return; }
+                if (touchDevice) {
+                    lookStart(e.clientX, e.clientY);
+                    e.preventDefault();
+                }
+            });
+            renderer.domElement.addEventListener('pointermove', function (e) {
+                if (touchDevice && lookActive) {
+                    lookMove(e.clientX, e.clientY);
+                    e.preventDefault();
+                }
+            });
+            renderer.domElement.addEventListener('pointerup', lookEnd);
+            renderer.domElement.addEventListener('pointercancel', lookEnd);
+            renderer.domElement.addEventListener('pointerleave', lookEnd);
+
+            var keyMap = {
+                'KeyW': 'forward', 'KeyS': 'backward', 'KeyA': 'left', 'KeyD': 'right',
+                'Space': 'up', 'KeyC': 'down'
+            };
+            document.querySelectorAll('#mobile-controls button').forEach(function (button) {
+                var moveKey = keyMap[button.dataset.key];
+                if (!moveKey) return;
+                function press(e) { e.preventDefault(); moveState[moveKey] = true; }
+                function release(e) { if (e) e.preventDefault(); moveState[moveKey] = false; }
+                button.addEventListener('touchstart', press, { passive: false });
+                button.addEventListener('touchend', release, { passive: false });
+                button.addEventListener('touchcancel', release);
+                button.addEventListener('pointerdown', press);
+                button.addEventListener('pointerup', release);
+                button.addEventListener('pointerleave', release);
+                button.addEventListener('mousedown', press);
+                button.addEventListener('mouseup', release);
+                button.addEventListener('mouseleave', release);
+            });
+
+            function updateCamera() {
+                camera.rotation.order = 'YXZ';
+                camera.rotation.y = yaw;
+                camera.rotation.x = pitch;
+
+                var dir = new THREE.Vector3();
+                camera.getWorldDirection(dir);
+                dir.y = 0; dir.normalize();
+                var right = new THREE.Vector3(dir.z, 0, -dir.x);
+
+                if (moveState.forward) camera.position.addScaledVector(dir, moveSpeed);
+                if (moveState.backward) camera.position.addScaledVector(dir, -moveSpeed);
+                if (moveState.left) camera.position.addScaledVector(right, moveSpeed);
+                if (moveState.right) camera.position.addScaledVector(right, -moveSpeed);
+                if (moveState.up) camera.position.y += moveSpeed;
+                if (moveState.down) camera.position.y -= moveSpeed;
+
+                // Keep camera above floor
+                if (camera.position.y < 0.5) camera.position.y = 0.5;
+            }
+
+            window.resetCamera = function () {
+                camera.position.set(0, 2.2, 5);
+                pitch = -0.15; yaw = 0;
+                if (pointerLocked) document.exitPointerLock();
+            };
+
+            // ---- Raycasting for click info ----
+            var raycaster = new THREE.Raycaster();
+            var mouse = new THREE.Vector2();
+
+            function doRaycast(clientX, clientY) {
+                if (!started) { startScene(); return; }
+                if (pointerLocked) {
+                    mouse.x = 0; mouse.y = 0;
+                } else {
+                    mouse.x = (clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+                }
+                raycaster.setFromCamera(mouse, camera);
+                if (ctx.interactives.length === 0) return;
+                var intersects = raycaster.intersectObjects(ctx.interactives, false);
+                if (intersects.length > 0) {
+                    var hit = intersects[0].object;
+                    for (var flag in ctx.raycastHandlers) {
+                        if (hit.userData[flag]) {
+                            ctx.raycastHandlers[flag](hit);
+                            return;
+                        }
+                    }
+                    var matName = hit.userData.materialName || (hit.material ? hit.material.name : 'unknown');
+                    ctx.showInfoPanel(matName, hit);
+                }
+            }
+
+            renderer.domElement.addEventListener('click', function (e) {
+                doRaycast(e.clientX, e.clientY);
+            });
+
+            // ---- Load room.obj once, then init all components ----
+            var loading = document.getElementById('loading');
+            loading.style.display = 'block';
+
+            var mtlLoader = new THREE.MTLLoader();
+            mtlLoader.setPath('/room/');
+            mtlLoader.load('room.mtl', function (materials) {
+                materials.preload();
+
+                var objLoader = new THREE.OBJLoader();
+                objLoader.setMaterials(materials);
+                objLoader.setPath('/room/');
+                objLoader.load('room.obj', function (object) {
+                    // Room is centered at origin, Z goes negative (depth 5.2m)
+                    object.traverse(function (child) {
+                        if (child.isMesh && child.material && child.material.name) {
+                            child.userData.materialName = child.material.name;
+                        }
+                    });
+
+                    scene.add(object);
+                    loading.style.display = 'none';
+
+                    object.traverse(function (child) {
+                        if (child.isMesh && child.material && child.material.name) {
+                            ctx.interactives.push(child);
+                        }
+                    });
+
+                    // ---- Second room copy to the left ----
+                    var room2 = object.clone();
+                    room2.position.x = -4.0;
+                    room2.traverse(function (child) {
+                        if (child.isMesh) {
+                            if (child.material && child.material.name) {
+                                child.userData.materialName = child.material.name;
+                            }
+                            ctx.interactives.push(child);
+                        }
+                    });
+                    scene.add(room2);
+
+                    // ---- Third room copy to the right ----
+                    var room3 = object.clone();
+                    room3.position.x = 4.0;
+                    room3.traverse(function (child) {
+                        if (child.isMesh) {
+                            if (child.material && child.material.name) {
+                                child.userData.materialName = child.material.name;
+                            }
+                            ctx.interactives.push(child);
+                        }
+                    });
+                    scene.add(room3);
+
+                    // ---- Fourth room copy further right (Niyaz) ----
+                    var room4 = object.clone();
+                    room4.position.x = 8.0;
+                    room4.traverse(function (child) {
+                        if (child.isMesh) {
+                            if (child.material && child.material.name) {
+                                child.userData.materialName = child.material.name;
+                            }
+                            ctx.interactives.push(child);
+                        }
+                    });
+                    scene.add(room4);
+
+                    ctx.rooms = { center: object, left: room2, right: room3, farRight: room4 };
+
+                    // Init all registered room components
+                    for (var i = 0; i < window.Room3DComponents.length; i++) {
+                        var comp = window.Room3DComponents[i];
+                        if (comp.load) comp.load(ctx);
+                    }
+                }, undefined, function (err) {
+                    loading.textContent = 'Ошибка загрузки OBJ: ' + err;
+                    console.error(err);
+                });
+            }, undefined, function (err) {
+                loading.textContent = 'Ошибка загрузки MTL: ' + err;
+                console.error(err);
+            });
+
+            // ---- Animation Loop ----
+            function animate() {
+                requestAnimationFrame(animate);
+                updateCamera();
+
+                for (var i = 0; i < window.Room3DComponents.length; i++) {
+                    var comp = window.Room3DComponents[i];
+                    if (comp.update) comp.update();
+                }
+
+                renderer.render(scene, camera);
+            }
+
+            // ---- Resize ----
+            window.addEventListener('resize', function () {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            animate();
+        })();
+    </script>
+</th:block>
+</body>
+</html>
