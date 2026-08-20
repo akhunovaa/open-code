@@ -34,7 +34,19 @@
             border-radius: 8px; padding: 12px; margin-bottom: 12px; text-align: left;
         }
         #steeve-dialog .steeve-wallet-box .label { color: #f5b53b; font-size: 13px; margin-bottom: 6px; }
-        #steeve-dialog .steeve-wallet-box .mono { color: #8ef; font-size: 13px; word-break: break-all; }
+        #steeve-dialog .steeve-wallet-box .mono {
+            color: #8ef; font-size: 13px; word-break: break-all;
+            position: relative;
+        }
+        #steeve-dialog .steeve-wallet-box .mono .addr-link {
+            cursor: pointer; transition: color 0.15s; color: #8ef;
+        }
+        #steeve-dialog .steeve-wallet-box .mono .addr-link:hover { color: #cde; text-decoration: underline; }
+        #steeve-dialog .steeve-wallet-box .mono .copy-hint {
+            display: inline-block; margin-left: 6px; font-size: 11px; color: #f5b53b; opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #steeve-dialog .steeve-wallet-box .mono .copy-hint.show { opacity: 1; }
         #steeve-dialog .steeve-wallet-box .dim { color: #aaa; font-size: 12px; word-break: break-all; }
 
         #steeve-info-dialog {
@@ -65,6 +77,25 @@
             font-size: 14px; pointer-events: auto; transition: all 0.15s;
         }
         #steeve-info-dialog .steeve-close:hover { background: rgba(21,101,192,0.8); color: #fff; }
+
+        #steeve-dialog .btc-price-box {
+            background: rgba(245,181,59,0.08); border: 1px solid rgba(245,181,59,0.3);
+            border-radius: 8px; padding: 12px; margin-bottom: 12px; text-align: left;
+        }
+        #steeve-dialog .btc-price-box .label { color: #f5b53b; font-size: 13px; margin-bottom: 6px; }
+        #steeve-dialog .btc-price-box .price-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        #steeve-dialog .btc-price-box .price-val { color: #8ef; font-size: 14px; word-break: break-all; flex: 1; }
+        #steeve-dialog .btc-price-box .price-dim { color: #aaa; font-size: 11px; margin-top: 4px; }
+        #steeve-dialog .btc-refresh-btn {
+            flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+            background: rgba(245,181,59,0.15); border: 1px solid rgba(245,181,59,0.6);
+            color: #f5b53b; font-size: 18px; cursor: pointer; pointer-events: auto;
+            display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+        }
+        #steeve-dialog .btc-refresh-btn:hover { background: rgba(245,181,59,0.35); color: #fff; }
+        #steeve-dialog .btc-refresh-btn:disabled { opacity: 0.6; cursor: wait; }
+        #steeve-dialog .btc-refresh-btn.spinning { animation: btcSpin 0.8s linear infinite; }
+        @keyframes btcSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 
     <div id="steeve-dialog">
@@ -84,6 +115,19 @@
             <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                 <button class="steeve-price-btn" style="flex: 1;" onclick="showSteeveBalance()">💰 Доступный баланс</button>
                 <button class="steeve-price-btn" style="flex: 1;" onclick="showSteeveTransactions()">🧾 Транзакции</button>
+            </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <button class="steeve-price-btn" id="steeve-btc-price-btn" onclick="refreshSteeveBtcPrice()">💰 Узнать курс биткоина</button>
+        </div>
+        <div id="steeve-btc-price-section" style="display:none;">
+            <div class="btc-price-box">
+                <div class="label">📈 Курс биткоина</div>
+                <div class="price-row">
+                    <div class="price-val" id="steeve-btc-price-val"></div>
+                    <button class="btc-refresh-btn" id="steeve-btc-refresh-btn" onclick="refreshSteeveBtcPrice()" aria-label="Обновить курс">🔄</button>
+                </div>
+                <div class="price-dim" id="steeve-btc-price-time"></div>
             </div>
         </div>
         <div style="margin-bottom: 12px;">
@@ -153,6 +197,7 @@
                 dlg.classList.remove('fade-out');
                 dlg.style.display = 'block';
                 refreshSteeveWallet();
+                loadSteeveBtcPrice();
             }
 
             window.closeSteeveDialog = function () {
@@ -180,12 +225,49 @@
                 return fetch('/api/btc/wallet/' + encodeURIComponent(steeveUserId()) + path, opts);
             }
 
+            window.copySteeveAddress = function (el) {
+                var container = el.closest('.mono') || el;
+                var text = container.getAttribute('data-address') || '';
+                if (!text) return;
+                function flashHint() {
+                    var hint = container.querySelector('.copy-hint');
+                    if (hint) {
+                        hint.textContent = '✓ Скопировано!';
+                        hint.classList.add('show');
+                        setTimeout(function () { hint.classList.remove('show'); }, 1500);
+                    }
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(flashHint).catch(function () {
+                        fallbackCopy(text); flashHint();
+                    });
+                } else {
+                    fallbackCopy(text); flashHint();
+                }
+            };
+
+            function fallbackCopy(text) {
+                var ta = document.createElement('textarea');
+                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); } catch (e) {}
+                document.body.removeChild(ta);
+            }
+
+            function setSteeveAddress(addrEl, address) {
+                addrEl.setAttribute('data-address', address);
+                addrEl.innerHTML = 'Адрес: <span class="addr-link">' + address +
+                    '</span><span class="copy-hint">📋 нажми, чтобы скопировать</span>';
+                var link = addrEl.querySelector('.addr-link');
+                link.onclick = function () { window.copySteeveAddress(link); };
+            }
+
             function showSteeveWalletBox(info) {
                 var section = document.getElementById('steeve-wallet-section');
                 var createBtn = document.getElementById('steeve-create-wallet-btn');
                 if (!section) return;
                 document.getElementById('steeve-wallet-id').textContent = 'ID: ' + info.id;
-                document.getElementById('steeve-wallet-address').textContent = 'Адрес: ' + info.address;
+                setSteeveAddress(document.getElementById('steeve-wallet-address'), info.address);
                 section.style.display = 'block';
                 if (createBtn) createBtn.style.display = 'none';
             }
@@ -246,7 +328,7 @@
                         return r.json().then(function (e) { throw new Error(e.error || 'HTTP ' + r.status); });
                     })
                     .then(function (data) {
-                        addrEl.textContent = 'Адрес: ' + data.address;
+                        setSteeveAddress(addrEl, data.address);
                     })
                     .catch(function (err) {
                         addrEl.textContent = 'Ошибка: ' + err.message;
@@ -321,40 +403,80 @@
                     });
             };
 
-            window.askBtcPrice = function () {
-                var btn = document.getElementById('btc-price-btn');
-                var textEl = document.getElementById('steeve-dialog-text');
-                if (!btn || !textEl) return;
-                btn.disabled = true;
-                btn.textContent = '⏳ Запрашиваю цену...';
-                textEl.innerHTML = '<b>Супер Пупер Биток Трейдер</b><br><br>— Секунду, сейчас гляну на биржу...';
+            // ---- BTC price display with caching ----
+            function formatBtcPrice(data) {
+                var usd = parseFloat(data.priceUsd);
+                var rub = parseFloat(data.priceRub);
+                var usdText = isFinite(usd)
+                    ? '$' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : data.priceUsd;
+                var rubText = isFinite(rub)
+                    ? '₽' + rub.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : data.priceRub;
+                return usdText + ' / ' + rubText;
+            }
 
+            function formatBtcSavedAt(savedAt) {
+                try {
+                    var d = new Date(savedAt);
+                    if (isNaN(d.getTime())) return savedAt;
+                    return d.toLocaleString('ru-RU', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    });
+                } catch (e) {
+                    return savedAt;
+                }
+            }
+
+            function showSteeveBtcPrice(data) {
+                var section = document.getElementById('steeve-btc-price-section');
+                if (!section) return;
+                document.getElementById('steeve-btc-price-val').textContent = formatBtcPrice(data);
+                document.getElementById('steeve-btc-price-time').textContent =
+                    'сохранено: ' + formatBtcSavedAt(data.savedAt);
+                section.style.display = 'block';
+            }
+
+            function loadSteeveBtcPrice() {
+                fetch('/api/btc-price/cached')
+                    .then(function (r) {
+                        if (r.status === 404) return null;
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.json();
+                    })
+                    .then(function (data) {
+                        if (data) showSteeveBtcPrice(data);
+                    })
+                    .catch(function () { /* ignore */ });
+            }
+
+            window.refreshSteeveBtcPrice = function () {
+                var section = document.getElementById('steeve-btc-price-section');
+                if (section) section.style.display = 'block';
+                var valEl = document.getElementById('steeve-btc-price-val');
+                if (valEl) valEl.textContent = '⏳ Запрашиваю курс...';
+                var timeEl = document.getElementById('steeve-btc-price-time');
+                if (timeEl) timeEl.textContent = '';
+                var btn = document.getElementById('steeve-btc-refresh-btn');
+                if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
                 fetch('/api/btc-price')
                     .then(function (r) {
                         if (!r.ok) throw new Error('HTTP ' + r.status);
                         return r.json();
                     })
                     .then(function (data) {
-                        var usd = parseFloat(data.priceUsd);
-                        var rub = parseFloat(data.priceRub);
-                        var usdText = isFinite(usd)
-                            ? '$' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            : data.priceUsd;
-                        var rubText = isFinite(rub)
-                            ? '₽' + rub.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            : data.priceRub;
-                        textEl.innerHTML = '<b>Супер Пупер Биток Трейдер</b><br><br>' +
-                            '— Смотри, биток прямо сейчас стоит: <b style="color:#f5b53b">' + usdText + '</b><br>' +
-                            '(примерно <b style="color:#f5b53b">' + rubText + '</b>).<br><br>' +
-                            '— Покупай на просадках, продавай на хаях, и всё будет хорошо!';
+                        showSteeveBtcPrice(data);
                     })
                     .catch(function (err) {
-                        textEl.innerHTML = '<b>Супер Пупер Биток Трейдер</b><br><br>' +
-                            '— Ой, биржа не ответила: ' + err.message + '. Попробуй ещё раз чуть позже.';
+                        if (section) {
+                            section.style.display = 'block';
+                            if (valEl) valEl.textContent = 'Ошибка: ' + err.message;
+                            if (timeEl) timeEl.textContent = '';
+                        }
                     })
                     .finally(function () {
-                        btn.disabled = false;
-                        btn.textContent = '💰 Сколько стоит биткоин?';
+                        if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
                     });
             };
 

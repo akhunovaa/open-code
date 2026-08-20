@@ -1,72 +1,71 @@
 package com.example.springmvcapp.web;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
+import java.util.Map;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.springmvcapp.service.BtcPriceService;
+import com.example.springmvcapp.service.BtcPriceService.CachedPrice;
 
+/**
+ * REST-контроллер для получения и кэширования курса биткоина.
+ *
+ * <p>Предоставляет HTTP API для:</p>
+ * <ul>
+ *     <li>{@code GET /api/btc-price} — запрос свежего курса у Binance и сохранение
+ *         в {@code /Users/azatakhunov/temp/btc/btc-price.json};</li>
+ *     <li>{@code GET /api/btc-price/cached} — получение последнего сохранённого
+ *         курса без обращения к бирже.</li>
+ * </ul>
+ *
+ * @see BtcPriceService
+ */
 @RestController
 public class CryptoPriceController {
 
-    private final HttpClient httpClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final BtcPriceService btcPriceService;
 
-    public CryptoPriceController(HttpClient httpClient) {
-        this.httpClient = httpClient;
+    public CryptoPriceController(BtcPriceService btcPriceService) {
+        this.btcPriceService = btcPriceService;
     }
 
+    /**
+     * Запрашивает свежий курс биткоина у Binance, сохраняет его в файл кэша
+     * и возвращает результат с меткой времени.
+     *
+     * @return {@link CachedPrice} с ценами в USD/RUB и временем сохранения
+     */
     @GetMapping("/api/btc-price")
-    public BtcPrice btcPrice() {
-        return new BtcPrice(fetchPrice("BTCUSDT"), fetchPrice("BTCRUB"));
+    public CachedPrice btcPrice() {
+        return btcPriceService.refreshPrice();
     }
 
-    private String fetchPrice(String symbol) {
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.binance.com/api/v3/ticker/price?symbol=" + symbol))
-                    .timeout(Duration.ofSeconds(10))
-                    .GET()
-                    .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                JsonNode node = objectMapper.readTree(response.body());
-                JsonNode price = node.get("price");
-                if (price != null && price.isTextual()) {
-                    return price.asText();
-                }
-            }
-        } catch (Exception e) {
-            // fall through to error response
-        }
-        return "ошибка получения цены";
+    /**
+     * Возвращает последний сохранённый курс биткоина без запроса к бирже.
+     *
+     * @return {@link CachedPrice} со статусом {@code 200}, либо {@code 404},
+     *         если кэш ещё не создан
+     */
+    @GetMapping("/api/btc-price/cached")
+    public ResponseEntity<CachedPrice> btcPriceCached() {
+        return btcPriceService.getCachedPrice()
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    public static class BtcPrice {
-        private final String priceUsd;
-        private final String priceRub;
-
-        public BtcPrice(String priceUsd, String priceRub) {
-            this.priceUsd = priceUsd;
-            this.priceRub = priceRub;
-        }
-
-        public String getPriceUsd() {
-            return priceUsd;
-        }
-
-        public String getPriceRub() {
-            return priceRub;
-        }
-
-        public String getPrice() {
-            return priceUsd;
-        }
+    /**
+     * Обрабатывает непредвиденные ошибки сервиса.
+     *
+     * @param e перехваченное исключение
+     * @return ответ со статусом {@code 500} и полем {@code error}
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleError(Exception e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", e.getMessage()));
     }
 }

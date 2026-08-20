@@ -1,8 +1,6 @@
 package com.example.springmvcapp.web;
 
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +8,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.mockito.ArgumentMatchers.any;
+import com.example.springmvcapp.service.BtcPriceService;
+import com.example.springmvcapp.service.BtcPriceService.CachedPrice;
+
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -23,25 +23,24 @@ class CryptoPriceControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private HttpClient httpClient;
+    private BtcPriceService btcPriceService;
 
     @Test
     void btcPrice_returnsPriceFromBinance() throws Exception {
-        HttpResponse<String> usdResponse = mockResponse(200, "{\"symbol\":\"BTCUSDT\",\"price\":\"64427.39000000\"}");
-        HttpResponse<String> rubResponse = mockResponse(200, "{\"symbol\":\"BTCRUB\",\"price\":\"5820000.00000000\"}");
-        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(usdResponse, rubResponse);
+        when(btcPriceService.refreshPrice()).thenReturn(
+                new CachedPrice("64427.39000000", "5820000.00000000", "2026-08-20T19:04:41Z"));
 
         mockMvc.perform(get("/api/btc-price"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.priceUsd").value("64427.39000000"))
-                .andExpect(jsonPath("$.priceRub").value("5820000.00000000"));
+                .andExpect(jsonPath("$.priceRub").value("5820000.00000000"))
+                .andExpect(jsonPath("$.savedAt").isNotEmpty());
     }
 
     @Test
     void btcPrice_returnsErrorTextWhenRequestFails() throws Exception {
-        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenThrow(new java.io.IOException("down"));
+        when(btcPriceService.refreshPrice()).thenReturn(
+                new CachedPrice("ошибка получения цены", "ошибка получения цены", "2026-08-20T19:04:41Z"));
 
         mockMvc.perform(get("/api/btc-price"))
                 .andExpect(status().isOk())
@@ -49,11 +48,23 @@ class CryptoPriceControllerTest {
                 .andExpect(jsonPath("$.priceRub").value("ошибка получения цены"));
     }
 
-    @SuppressWarnings("unchecked")
-    private static HttpResponse<String> mockResponse(int statusCode, String body) {
-        HttpResponse<String> response = org.mockito.Mockito.mock(HttpResponse.class);
-        when(response.statusCode()).thenReturn(statusCode);
-        when(response.body()).thenReturn(body);
-        return response;
+    @Test
+    void btcPriceCached_returnsCachedWhenExists() throws Exception {
+        when(btcPriceService.getCachedPrice()).thenReturn(Optional.of(
+                new CachedPrice("100000.00", "9000000.00", "2026-08-20T19:04:41Z")));
+
+        mockMvc.perform(get("/api/btc-price/cached"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.priceUsd").value("100000.00"))
+                .andExpect(jsonPath("$.priceRub").value("9000000.00"))
+                .andExpect(jsonPath("$.savedAt").value("2026-08-20T19:04:41Z"));
+    }
+
+    @Test
+    void btcPriceCached_returns404WhenNotCached() throws Exception {
+        when(btcPriceService.getCachedPrice()).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/btc-price/cached"))
+                .andExpect(status().isNotFound());
     }
 }

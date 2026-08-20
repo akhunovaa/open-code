@@ -147,7 +147,7 @@
             scene.fog = new THREE.Fog(0x0a0f1a, 15, 60);
 
             var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
-            camera.position.set(0, 2.2, 5);
+            camera.position.set(0, 3.5, 12);
             camera.rotation.order = 'YXZ';
             camera.rotation.y = 0;
 
@@ -226,7 +226,7 @@
             // ---- First-Person Controls ----
             var moveState = { forward: false, backward: false, left: false, right: false, up: false, down: false };
             var moveSpeed = 0.08;
-            var pitch = -0.15, yaw = 0;
+            var pitch = -0.2, yaw = 0;
             var pointerLocked = false;
             var started = false;
 
@@ -381,8 +381,8 @@
             }
 
             window.resetCamera = function () {
-                camera.position.set(0, 2.2, 5);
-                pitch = -0.15; yaw = 0;
+                camera.position.set(0, 3.5, 12);
+                pitch = -0.2; yaw = 0;
                 if (pointerLocked) document.exitPointerLock();
             };
 
