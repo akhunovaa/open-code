@@ -30,11 +30,12 @@ import org.springframework.stereotype.Service;
 /**
  * Сервис, инкапсулирующий работу с биткоин-кошельками через библиотеку bitcoinj.
  *
- * <p>Сервис управляет детерминированными (BIP32/BIP39) кошельками в сети
- * {@code mainnet} с типом адресов {@code P2WPKH}. Каждый кошелёк сериализуется
- * в protobuf-файл формата bitcoinj и хранится в каталоге
- * {@code storageDir} (расширение {@code .wallet}), путь задаётся свойством
- * {@code btc.storage-dir} (по умолчанию {@code /data}).</p>
+ * <p>Сервис управляет детерминированными (BIP32/BIP39) кошельками с типом адресов
+ * {@code P2WPKH}. Сеть задаётся свойством {@code btc.network} (по умолчанию
+ * {@code mainnet}; для тестирования — {@code regtest}, {@code testnet} или
+ * {@code signet}). Каждый кошелёк сериализуется в protobuf-файл формата bitcoinj
+ * и хранится в каталоге {@code storageDir} (расширение {@code .wallet}), путь
+ * задаётся свойством {@code btc.storage-dir} (по умолчанию {@code /data}).</p>
  *
  * <p>Загруженные кошельки кэшируются в памяти и автоматически сохраняются на диск
  * при изменениях (автосейв с задержкой 500 мс). Идентификатор кошелька равен
@@ -57,7 +58,7 @@ public class BitcoinWalletService {
     /**
      * Сеть Bitcoin, в которой работают кошельки сервиса.
      */
-    private static final BitcoinNetwork NETWORK = BitcoinNetwork.MAINNET;
+    private final BitcoinNetwork network;
 
     /**
      * Тип выходных скриптов (адресов), используемый для получаемых средств.
@@ -70,17 +71,22 @@ public class BitcoinWalletService {
     private final Map<String, Wallet> cache = new ConcurrentHashMap<>();
 
     /**
-     * Парсер адресов для сети {@link #NETWORK}.
+     * Парсер адресов для сети {@link #network}.
      */
-    private final AddressParser addressParser = AddressParser.getDefault(NETWORK);
+    private final AddressParser addressParser;
 
     /**
-     * Создаёт сервис с заданным каталогом хранения кошельков.
+     * Создаёт сервис с заданным каталогом хранения и сетью.
      *
      * @param storageDir путь к каталогу хранения (из свойства {@code btc.storage-dir})
+     * @param network    имя сети Bitcoin: {@code mainnet}, {@code regtest},
+     *                   {@code testnet} или {@code signet} (из свойства {@code btc.network})
      */
-    public BitcoinWalletService(@org.springframework.beans.factory.annotation.Value("${btc.storage-dir:/data}") String storageDir) {
+    public BitcoinWalletService(@org.springframework.beans.factory.annotation.Value("${btc.storage-dir:/data}") String storageDir,
+                                @org.springframework.beans.factory.annotation.Value("${btc.network:mainnet}") String network) {
         this.storageDir = Paths.get(storageDir);
+        this.network = BitcoinNetwork.valueOf(network.toUpperCase());
+        this.addressParser = AddressParser.getDefault(this.network);
     }
 
     /**
@@ -113,7 +119,7 @@ public class BitcoinWalletService {
         }
         File file = fileFor(id);
         Wallet wallet = file.exists() ? Wallet.loadFromFile(file)
-                : Wallet.createDeterministic(NETWORK, SCRIPT_TYPE);
+                : Wallet.createDeterministic(network, SCRIPT_TYPE);
         wallet.autosaveToFile(file, java.time.Duration.ofMillis(500), null);
         cache.put(id, wallet);
         return wallet;
@@ -195,7 +201,7 @@ public class BitcoinWalletService {
         String current = addresses.isEmpty() ? null : addresses.get(addresses.size() - 1);
         return new WalletInfo(
                 id,
-                NETWORK.toString(),
+                network.toString(),
                 wallet.getKeyChainSeed() != null ? wallet.getKeyChainSeed().getMnemonicString() : null,
                 wallet.getBalance(BalanceType.AVAILABLE).toSat(),
                 current,
@@ -245,7 +251,7 @@ public class BitcoinWalletService {
         for (Transaction tx : wallet.getTransactionsByTime()) {
             List<OutputInfo> outputs = new ArrayList<>();
             for (TransactionOutput out : tx.getOutputs()) {
-                Address to = out.getScriptPubKey().getToAddress(NETWORK);
+                Address to = out.getScriptPubKey().getToAddress(network);
                 outputs.add(new OutputInfo(to.toString(), out.getValue().toSat()));
             }
             Coin fee = tx.getFee();
@@ -319,7 +325,7 @@ public class BitcoinWalletService {
          * Создаёт DTO с данными кошелька.
          *
          * @param id               идентификатор кошелька
-         * @param network          имя сети (например, {@code mainnet})
+         * @param network          имя сети (например, {@code mainnet} или {@code regtest})
          * @param mnemonic         мнемоническая фраза BIP39
          * @param balanceSat       доступный баланс в сатоши
          * @param address          текущий receive-адрес
@@ -343,7 +349,7 @@ public class BitcoinWalletService {
         public String getId() { return id; }
 
         /**
-         * @return имя сети (например, {@code mainnet})
+         * @return имя сети (например, {@code mainnet} или {@code regtest})
          */
         public String getNetwork() { return network; }
 
