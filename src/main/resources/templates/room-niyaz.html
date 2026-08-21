@@ -485,6 +485,8 @@
                         if (!ownerAddr) throw new Error('Адрес владельца не задан');
                         var satoshi = Math.floor(priceRub / rubRate * 100000000);
                         if (satoshi < 546) satoshi = 546;
+                        var estFee = 1410;
+                        if (satoshi + estFee > sat) satoshi = Math.max(546, sat - estFee);
                         return fetch('/api/btc/wallet/' + encodeURIComponent(userId) + '/send', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
