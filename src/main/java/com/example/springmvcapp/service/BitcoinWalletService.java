@@ -138,7 +138,7 @@ public class BitcoinWalletService {
      * @throws IOException               если не удалось создать каталог или сохранить файл
      * @throws UnreadableWalletException если созданный кошелёк не удалось загрузить
      */
-    public String createWallet() throws IOException, UnreadableWalletException {
+    public synchronized String createWallet() throws IOException, UnreadableWalletException {
         return createWallet(UUID.randomUUID().toString());
     }
 
@@ -154,7 +154,7 @@ public class BitcoinWalletService {
      * @throws IOException               если не удалось создать каталог или сохранить файл
      * @throws UnreadableWalletException если созданный кошелёк не удалось загрузить
      */
-    public String createWallet(String id) throws IOException, UnreadableWalletException {
+    public synchronized String createWallet(String id) throws IOException, UnreadableWalletException {
         Files.createDirectories(storageDir);
         loadOrCreate(id).saveToFile(fileFor(id));
         return id;
@@ -170,7 +170,7 @@ public class BitcoinWalletService {
      * @return список идентификаторов кошельков
      * @throws IOException если не удалось прочитать каталог хранения
      */
-    public List<String> listWallets() throws IOException {
+    public synchronized List<String> listWallets() throws IOException {
         if (!Files.isDirectory(storageDir)) {
             return List.of();
         }
@@ -195,7 +195,7 @@ public class BitcoinWalletService {
      * @throws IOException               если не удалось загрузить кошелёк
      * @throws UnreadableWalletException если файл кошелька не читается
      */
-    public WalletInfo getWallet(String id) throws IOException, UnreadableWalletException {
+    public synchronized WalletInfo getWallet(String id) throws IOException, UnreadableWalletException {
         Wallet wallet = loadOrCreate(id);
         List<String> addresses = wallet.getIssuedReceiveAddresses().stream()
                 .map(Address::toString)
@@ -219,7 +219,7 @@ public class BitcoinWalletService {
      * @throws IOException               если не удалось загрузить кошелёк
      * @throws UnreadableWalletException если файл кошелька не читается
      */
-    public String freshAddress(String id) throws IOException, UnreadableWalletException {
+    public synchronized String freshAddress(String id) throws IOException, UnreadableWalletException {
         return loadOrCreate(id).freshReceiveAddress().toString();
     }
 
@@ -231,7 +231,7 @@ public class BitcoinWalletService {
      * @throws IOException               если не удалось загрузить кошелёк
      * @throws UnreadableWalletException если файл кошелька не читается
      */
-    public long balance(String id) throws IOException, UnreadableWalletException {
+    public synchronized long balance(String id) throws IOException, UnreadableWalletException {
         return loadOrCreate(id).getBalance(BalanceType.AVAILABLE).toSat();
     }
 
@@ -247,7 +247,7 @@ public class BitcoinWalletService {
      * @throws IOException               если не удалось загрузить кошелёк
      * @throws UnreadableWalletException если файл кошелька не читается
      */
-    public List<TxInfo> transactions(String id) throws IOException, UnreadableWalletException {
+    public synchronized List<TxInfo> transactions(String id) throws IOException, UnreadableWalletException {
         Wallet wallet = loadOrCreate(id);
         List<TxInfo> result = new ArrayList<>();
         for (Transaction tx : wallet.getTransactionsByTime()) {
@@ -257,11 +257,70 @@ public class BitcoinWalletService {
                 outputs.add(new OutputInfo(to.toString(), out.getValue().toSat()));
             }
             Coin fee = tx.getFee();
+            int depth = tx.getConfidence().getDepthInBlocks();
             result.add(new TxInfo(
                     tx.getTxId().toString(),
                     tx.getValue(wallet).toSat(),
                     fee != null ? fee.toSat() : null,
-                    outputs));
+                    outputs,
+                    depth));
+        }
+        return result;
+    }
+
+    /**
+     * Возвращает подтверждённый баланс кошелька в сатоши.
+     *
+     * <p>Суммируются только входящие транзакции с подтверждениями ≥ 3 блоков
+     * (значение &gt; 0 и depth ≥ 3). Транзакции с &lt; 3 подтверждений в баланс
+     * не входят.</p>
+     *
+     * @param id идентификатор кошелька
+     * @return подтверждённый баланс в сатоши
+     * @throws IOException               если не удалось загрузить кошелёк
+     * @throws UnreadableWalletException если файл кошелька не читается
+     */
+    public synchronized long confirmedBalance(String id) throws IOException, UnreadableWalletException {
+        Wallet wallet = loadOrCreate(id);
+        long sum = 0;
+        for (Transaction tx : wallet.getTransactionsByTime()) {
+            int depth = tx.getConfidence().getDepthInBlocks();
+            long value = tx.getValue(wallet).toSat();
+            if (depth >= 3 && value > 0) {
+                sum += value;
+            }
+        }
+        return sum;
+    }
+
+    /**
+     * Возвращает неподтверждённые входящие транзакции (depth &lt; 3).
+     *
+     * @param id идентификатор кошелька
+     * @return список {@link TxInfo} с подтверждениями &lt; 3
+     * @throws IOException               если не удалось загрузить кошелёк
+     * @throws UnreadableWalletException если файл кошелька не читается
+     */
+    public synchronized List<TxInfo> pendingTransactions(String id) throws IOException, UnreadableWalletException {
+        Wallet wallet = loadOrCreate(id);
+        List<TxInfo> result = new ArrayList<>();
+        for (Transaction tx : wallet.getTransactionsByTime()) {
+            int depth = tx.getConfidence().getDepthInBlocks();
+            long value = tx.getValue(wallet).toSat();
+            if (depth < 3 && value > 0) {
+                List<OutputInfo> outputs = new ArrayList<>();
+                for (TransactionOutput out : tx.getOutputs()) {
+                    Address to = out.getScriptPubKey().getToAddress(network);
+                    outputs.add(new OutputInfo(to.toString(), out.getValue().toSat()));
+                }
+                Coin fee = tx.getFee();
+                result.add(new TxInfo(
+                        tx.getTxId().toString(),
+                        value,
+                        fee != null ? fee.toSat() : null,
+                        outputs,
+                        depth));
+            }
         }
         return result;
     }
@@ -284,7 +343,7 @@ public class BitcoinWalletService {
      * @throws IllegalArgumentException  если адрес некорректен, недостаточно средств,
      *                                   сумма ниже dust-порога или транзакция не проходит валидацию
      */
-    public SendResult send(String id, String toAddress, long amountSat) throws IOException, UnreadableWalletException {
+    public synchronized SendResult send(String id, String toAddress, long amountSat) throws IOException, UnreadableWalletException {
         Wallet wallet = loadOrCreate(id);
         Address destination = addressParser.parseAddress(toAddress);
         Context.getOrCreate();
@@ -326,7 +385,7 @@ public class BitcoinWalletService {
      * @throws UnreadableWalletException если файл кошелька не читается
      * @throws IllegalArgumentException  если hex некорректен
      */
-    public TxInfo importTransaction(String id, String hexTx, int depth)
+    public synchronized TxInfo importTransaction(String id, String hexTx, int depth)
             throws IOException, UnreadableWalletException {
         Wallet wallet = loadOrCreate(id);
         Context.getOrCreate();
@@ -363,7 +422,8 @@ public class BitcoinWalletService {
                 tx.getTxId().toString(),
                 tx.getValue(wallet).toSat(),
                 fee != null ? fee.toSat() : null,
-                outputs);
+                outputs,
+                depth);
     }
 
     /**
@@ -473,41 +533,21 @@ public class BitcoinWalletService {
         private final long valueSat;
         private final Long feeSat;
         private final List<OutputInfo> outputs;
+        private final int depth;
 
-        /**
-         * Создаёт DTO с данными транзакции.
-         *
-         * @param txId     идентификатор транзакции
-         * @param valueSat изменение баланса кошелька в сатоши
-         * @param feeSat   комиссия в сатоши или {@code null}, если не определена
-         * @param outputs  список выходов транзакции
-         */
-        public TxInfo(String txId, long valueSat, Long feeSat, List<OutputInfo> outputs) {
+        public TxInfo(String txId, long valueSat, Long feeSat, List<OutputInfo> outputs, int depth) {
             this.txId = txId;
             this.valueSat = valueSat;
             this.feeSat = feeSat;
             this.outputs = outputs;
+            this.depth = depth;
         }
 
-        /**
-         * @return идентификатор транзакции
-         */
         public String getTxId() { return txId; }
-
-        /**
-         * @return изменение баланса кошелька в сатоши
-         */
         public long getValueSat() { return valueSat; }
-
-        /**
-         * @return комиссия в сатоши или {@code null}, если не определена
-         */
         public Long getFeeSat() { return feeSat; }
-
-        /**
-         * @return список выходов транзакции
-         */
         public List<OutputInfo> getOutputs() { return outputs; }
+        public int getDepth() { return depth; }
     }
 
     /**

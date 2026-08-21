@@ -23,6 +23,17 @@
         .btn.purple { background: rgba(81,45,168,0.3); border-color: rgba(149,117,205,0.6); color: #9575cd; }
         .btn.purple:hover { background: rgba(81,45,168,0.6); color: #fff; }
 
+        #btc-wallet-indicator {
+            position: fixed; top: 54px; right: 16px; z-index: 15;
+            background: rgba(10,15,30,0.92); border: 1px solid rgba(245,181,59,0.4);
+            border-radius: 8px; padding: 8px 14px; pointer-events: none;
+            font-size: 13px; color: #f5b53b; min-width: 200px; text-align: right;
+            box-shadow: 0 4px 20px rgba(0,0,0,.5);
+        }
+        #btc-wallet-indicator .btc-wallet-rub { color: #8ef; font-size: 12px; margin-top: 2px; }
+        #btc-wallet-indicator .btc-wallet-usd { color: #7ee07e; font-size: 11px; margin-top: 1px; }
+        #btc-wallet-indicator .btc-wallet-warn { color: #ff6b6b; font-size: 11px; margin-top: 2px; }
+
         #info-panel {
             position: fixed; top: 60px; right: 16px; width: 360px; max-width: 90vw;
             background: rgba(10,15,30,0.95); backdrop-filter: blur(8px);
@@ -104,6 +115,8 @@
     </div>
 
     <div id="crosshair"></div>
+
+    <div id="btc-wallet-indicator">...</div>
 
     <div id="info-panel">
         <span class="close-btn" onclick="closePanel('info-panel')">&times;</span>
@@ -526,6 +539,44 @@
                 camera.updateProjectionMatrix();
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
+
+            // ---- BTC wallet balance indicator (top-right) ----
+            function updateBtcWalletIndicator() {
+                var el = document.getElementById('btc-wallet-indicator');
+                if (!el) return;
+                var userId = localStorage.getItem('alexey-btc-user-id');
+                if (!userId) {
+                    el.innerHTML = '👛 Кошелёк не создан<br><span class="btc-wallet-warn">Срочно к Алексею Дементьеву!</span>';
+                    return;
+                }
+                fetch('/api/btc/wallet/' + encodeURIComponent(userId) + '/confirmed-balance')
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        var sat = Number(data.balanceSat);
+                        return fetch('/api/btc-price/cached').then(function (r) {
+                            if (r.status === 404) return null;
+                            return r.json();
+                        }).then(function (price) {
+                            var rub = price ? parseFloat(price.priceRub) : 0;
+                            var usd = price ? parseFloat(price.priceUsd) : 0;
+                            var btcVal = sat / 100000000;
+                            var rubVal = (rub > 0) ? btcVal * rub : 0;
+                            var usdVal = (usd > 0) ? btcVal * usd : 0;
+                            el.innerHTML = '👛 ' + btcVal.toFixed(8) + ' BTC' +
+                                (rub > 0 ? '<br><span class="btc-wallet-rub">≈ ' +
+                                rubVal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+                                ' ₽</span>' : '') +
+                                (usd > 0 ? '<br><span class="btc-wallet-usd">$' +
+                                usdVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+                                '</span>' : '');
+                        });
+                    })
+                    .catch(function () {
+                        el.innerHTML = '👛 Кошелёк недоступен';
+                    });
+            }
+            updateBtcWalletIndicator();
+            setInterval(updateBtcWalletIndicator, 10000);
 
             animate();
         })();

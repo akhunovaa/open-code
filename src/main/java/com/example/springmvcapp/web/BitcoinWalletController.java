@@ -45,14 +45,29 @@ import org.bitcoinj.wallet.UnreadableWalletException;
 public class BitcoinWalletController {
 
     private final BitcoinWalletService walletService;
+    private final String ownerAddress;
 
     /**
      * Создаёт контроллер с заданным сервисом кошельков.
      *
      * @param walletService сервис, реализующий логику работы с bitcoinj-кошельками
+     * @param ownerAddress  адрес владельца-получателя сатошей при покупках
+     *                      (из свойства {@code btc.owner-address})
      */
-    public BitcoinWalletController(BitcoinWalletService walletService) {
+    public BitcoinWalletController(BitcoinWalletService walletService,
+                                   @org.springframework.beans.factory.annotation.Value("${btc.owner-address:}") String ownerAddress) {
         this.walletService = walletService;
+        this.ownerAddress = ownerAddress;
+    }
+
+    /**
+     * Возвращает адрес владельца (получателя сатошей при покупках).
+     *
+     * @return карта с полем {@code ownerAddress} (может быть пустой, если не задан)
+     */
+    @GetMapping("/api/btc/owner-address")
+    public Map<String, String> ownerAddress() {
+        return Map.of("ownerAddress", ownerAddress != null ? ownerAddress : "");
     }
 
     /**
@@ -150,6 +165,35 @@ public class BitcoinWalletController {
     @GetMapping("/api/btc/wallet/{id}/balance")
     public Map<String, Long> balance(@PathVariable String id) throws IOException, UnreadableWalletException {
         return Map.of("balanceSat", walletService.balance(id));
+    }
+
+    /**
+     * Возвращает подтверждённый баланс кошелька в сатоши.
+     *
+     * <p>Суммируются только входящие транзакции с подтверждениями ≥ 3 блоков.
+     * Транзакции с &lt; 3 подтверждений в баланс не входят.</p>
+     *
+     * @param id идентификатор кошелька
+     * @return карта с полем {@code balanceSat} — подтверждённый баланс в сатоши
+     * @throws IOException               если не удалось загрузить кошелёк
+     * @throws UnreadableWalletException если файл кошелька не читается
+     */
+    @GetMapping("/api/btc/wallet/{id}/confirmed-balance")
+    public Map<String, Long> confirmedBalance(@PathVariable String id) throws IOException, UnreadableWalletException {
+        return Map.of("balanceSat", walletService.confirmedBalance(id));
+    }
+
+    /**
+     * Возвращает неподтверждённые входящие транзакции (depth &lt; 3).
+     *
+     * @param id идентификатор кошелька
+     * @return список {@link TxInfo} с подтверждениями &lt; 3
+     * @throws IOException               если не удалось загрузить кошелёк
+     * @throws UnreadableWalletException если файл кошелька не читается
+     */
+    @GetMapping("/api/btc/wallet/{id}/pending-tx")
+    public List<TxInfo> pendingTx(@PathVariable String id) throws IOException, UnreadableWalletException {
+        return walletService.pendingTransactions(id);
     }
 
     /**

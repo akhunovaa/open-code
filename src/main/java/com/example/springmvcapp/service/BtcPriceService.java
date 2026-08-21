@@ -49,7 +49,7 @@ public class BtcPriceService {
      *
      * @return {@link Optional} с {@link CachedPrice} или пустой, если кэша нет
      */
-    public Optional<CachedPrice> getCachedPrice() {
+    public synchronized Optional<CachedPrice> getCachedPrice() {
         if (!Files.exists(priceFile)) {
             return Optional.empty();
         }
@@ -73,7 +73,7 @@ public class BtcPriceService {
      *
      * @return {@link CachedPrice} с актуальными ценами и меткой времени
      */
-    public CachedPrice refreshPrice() {
+    public synchronized CachedPrice refreshPrice() {
         String priceUsd = fetchPrice("BTCUSDT");
         String priceRub = fetchPrice("BTCRUB");
         String savedAt = Instant.now().toString();
@@ -82,7 +82,7 @@ public class BtcPriceService {
         return result;
     }
 
-    private void savePrice(CachedPrice price) {
+    private synchronized void savePrice(CachedPrice price) {
         try {
             Files.createDirectories(storageDir);
             ObjectNode node = objectMapper.createObjectNode();

@@ -170,13 +170,6 @@
             pointer-events: none; display: none; min-width: 220px;
             box-shadow: 0 4px 20px rgba(0,0,0,.5);
         }
-        #buyer-balance {
-            position: fixed; right: 16px; top: 16px; z-index: 30;
-            background: rgba(70,20,20,0.92); border: 1px solid rgba(255,107,107,0.5);
-            border-radius: 8px; padding: 10px 32px 10px 16px; color: #ff6b6b; font-size: 14px;
-            pointer-events: none; display: block; min-width: 220px; text-align: right;
-            box-shadow: 0 4px 20px rgba(0,0,0,.5);
-        }
         #balance-test-note {
             position: fixed; top: 62px; left: 50%; transform: translateX(-50%); z-index: 30;
             background: rgba(10,15,30,0.85); border: 1px solid rgba(245,181,59,0.4);
@@ -185,7 +178,6 @@
             box-shadow: 0 4px 20px rgba(0,0,0,.5);
         }
         #niyaz-balance .balance-close-x,
-        #buyer-balance .balance-close-x,
         #balance-test-note .balance-close-x {
             position: absolute; top: 4px; right: 6px;
             background: none; border: none; color: #aaa; font-size: 16px;
@@ -193,7 +185,6 @@
             padding: 2px 6px; border-radius: 6px; transition: all 0.15s;
         }
         #niyaz-balance .balance-close-x:hover { color: #fff; background: rgba(120,220,120,0.4); }
-        #buyer-balance .balance-close-x:hover { color: #fff; background: rgba(255,107,107,0.4); }
         #balance-test-note .balance-close-x:hover { color: #fff; background: rgba(245,181,59,0.4); }
         .balance-gain { animation: balancePulse 1s ease; }
         .balance-loss { animation: balancePulseRed 1s ease; }
@@ -252,9 +243,6 @@
     </div>
     <div id="niyaz-balance">💰 <b>Нияз Бабай:</b> <span id="niyaz-balance-value">0</span> ₽
         <button class="balance-close-x" onclick="closeBalanceBox('niyaz-balance')" aria-label="Закрыть">✖</button>
-    </div>
-    <div id="buyer-balance">💰 <b>Ваш баланс:</b> <span id="buyer-balance-value">100000</span> ₽
-        <button class="balance-close-x" onclick="closeBalanceBox('buyer-balance')" aria-label="Закрыть">✖</button>
     </div>
 </th:block>
 
@@ -346,27 +334,21 @@
                 if (partSoldList[currentShelfPart.id]) return;
                 var price = currentShelfPart.userData.partPrice;
                 var name = currentShelfPart.userData.partName;
-                if (buyerWallet < price) {
-                    alert('Не хватает средств на покупку ' + name + '!');
-                    return;
-                }
-                var oldNiyaz = niyazWallet;
-                var oldBuyer = buyerWallet;
-                niyazWallet += price;
-                buyerWallet -= price;
-                partSoldList[currentShelfPart.id] = true;
+                checkBtcAndPay(price, function () {
+                    var oldNiyaz = niyazWallet;
+                    niyazWallet += price;
+                    partSoldList[currentShelfPart.id] = true;
 
-                animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
-                animateWallet('buyer-balance-value', oldBuyer, buyerWallet, false, document.getElementById('buyer-balance'));
+                    animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
 
-                var buyBtn = document.querySelector('#niyaz-part-dialog .buy-now');
-                if (buyBtn) {
-                    buyBtn.disabled = true;
-                    buyBtn.textContent = '✅ Куплено';
-                }
-                var priceEl = document.getElementById('niyaz-part-dialog-price');
-                priceEl.className = 'part-price';
-                priceEl.textContent = price.toLocaleString('ru-RU') + ' ₽ — оплачено ✅';
+                    var buyBtn = document.querySelector('#niyaz-part-dialog .buy-now');
+                    if (buyBtn) { buyBtn.disabled = true; buyBtn.textContent = '✅ Куплено'; }
+                    var priceEl = document.getElementById('niyaz-part-dialog-price');
+                    priceEl.className = 'part-price';
+                    priceEl.textContent = price.toLocaleString('ru-RU') + ' ₽ — оплачено ✅';
+                }, function (err) {
+                    alert('Не хватает средств: ' + err);
+                });
             };
 
             window.closeNiyazPartDialog = function () {
@@ -398,27 +380,21 @@
                 if (cigarSoldList[currentShelfCigar.id]) return;
                 var price = currentShelfCigar.userData.cigarPrice;
                 var name = currentShelfCigar.userData.cigarName;
-                if (buyerWallet < price) {
-                    alert('Не хватает средств на покупку ' + name + '!');
-                    return;
-                }
-                var oldNiyaz = niyazWallet;
-                var oldBuyer = buyerWallet;
-                niyazWallet += price;
-                buyerWallet -= price;
-                cigarSoldList[currentShelfCigar.id] = true;
+                checkBtcAndPay(price, function () {
+                    var oldNiyaz = niyazWallet;
+                    niyazWallet += price;
+                    cigarSoldList[currentShelfCigar.id] = true;
 
-                animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
-                animateWallet('buyer-balance-value', oldBuyer, buyerWallet, false, document.getElementById('buyer-balance'));
+                    animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
 
-                var buyBtn = document.querySelector('#niyaz-cigar-dialog .buy-now');
-                if (buyBtn) {
-                    buyBtn.disabled = true;
-                    buyBtn.textContent = '✅ Куплено';
-                }
-                var priceEl = document.getElementById('niyaz-cigar-dialog-price');
-                priceEl.className = 'cigar-price';
-                priceEl.textContent = price.toLocaleString('ru-RU') + ' ₽ — оплачено ✅';
+                    var buyBtn = document.querySelector('#niyaz-cigar-dialog .buy-now');
+                    if (buyBtn) { buyBtn.disabled = true; buyBtn.textContent = '✅ Куплено'; }
+                    var priceEl = document.getElementById('niyaz-cigar-dialog-price');
+                    priceEl.className = 'cigar-price';
+                    priceEl.textContent = price.toLocaleString('ru-RU') + ' ₽ — оплачено ✅';
+                }, function (err) {
+                    alert('Не хватает средств: ' + err);
+                });
             };
 
             window.closeNiyazCigarDialog = function () {
@@ -471,12 +447,56 @@
             };
 
             var niyazWallet = 0;
-            var buyerWallet = 100000;
             var cigarSold = false;
             var currentShelfPart = null;
             var currentShelfCigar = null;
             var partSoldList = {};
             var cigarSoldList = {};
+
+            // ---- BTC balance check + send to owner ----
+            function checkBtcAndPay(priceRub, onOk, onFail) {
+                var userId = localStorage.getItem('alexey-btc-user-id');
+                if (!userId) { onFail('Сначала заведите кошелёк у Алексея Дементьева!'); return; }
+                var sat = 0;
+                var rubRate = 0;
+                fetch('/api/btc/wallet/' + encodeURIComponent(userId) + '/confirmed-balance')
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        sat = Number(data.balanceSat);
+                        return fetch('/api/btc-price/cached');
+                    })
+                    .then(function (r) {
+                        if (r.status === 404) throw new Error('Курс BTC не загружен — узнайте курс у Алексея Дементьева');
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.json();
+                    })
+                    .then(function (price) {
+                        rubRate = parseFloat(price.priceRub);
+                        if (!isFinite(rubRate) || rubRate <= 0) throw new Error('Курс BTC в рублях недоступен');
+                        var balanceRub = sat / 100000000 * rubRate;
+                        if (priceRub > balanceRub) {
+                            throw new Error('Стоимость ' + priceRub.toLocaleString('ru-RU') + ' ₽ превышает баланс кошелька ' +
+                                balanceRub.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ₽');
+                        }
+                        return fetch('/api/btc/owner-address').then(function (r) { return r.json(); });
+                    })
+                    .then(function (owner) {
+                        var ownerAddr = owner.ownerAddress;
+                        if (!ownerAddr) throw new Error('Адрес владельца не задан');
+                        var satoshi = Math.floor(priceRub / rubRate * 100000000);
+                        if (satoshi < 546) satoshi = 546;
+                        return fetch('/api/btc/wallet/' + encodeURIComponent(userId) + '/send', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ to: ownerAddr, amountSat: satoshi })
+                        }).then(function (r) {
+                            if (r.ok) return r.json();
+                            return r.json().then(function (e) { throw new Error(e.error || 'HTTP ' + r.status); });
+                        });
+                    })
+                    .then(function () { onOk(); })
+                    .catch(function (err) { onFail(err.message); });
+            }
 
             window.askNiyazCigars = function () {
                 var btn = document.getElementById('niyaz-cigar-btn');
@@ -515,7 +535,6 @@
                         }
                         listEl.innerHTML = html;
                         document.getElementById('niyaz-balance').style.display = 'block';
-                        document.getElementById('buyer-balance').style.display = 'block';
                     })
                     .catch(function (err) {
                         listEl.innerHTML = '<div class="parts-empty">Ошибка: ' + err.message + '. Попробуй ещё раз.</div>';
@@ -552,52 +571,46 @@
 
             window.buyNiyazPart = function (name, price, btn) {
                 if (!btn || btn.disabled) return;
-                if (buyerWallet < price) {
-                    alert('Не хватает средств на покупку ' + name + '!');
-                    return;
-                }
-                btn.disabled = true;
-                btn.textContent = '✅ Куплено';
-                btn.classList.add('sold');
+                checkBtcAndPay(price, function () {
+                    btn.disabled = true;
+                    btn.textContent = '✅ Куплено';
+                    btn.classList.add('sold');
 
-                var oldNiyaz = niyazWallet;
-                var oldBuyer = buyerWallet;
-                niyazWallet += price;
-                buyerWallet -= price;
+                    var oldNiyaz = niyazWallet;
+                    niyazWallet += price;
 
-                animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
-                animateWallet('buyer-balance-value', oldBuyer, buyerWallet, false, document.getElementById('buyer-balance'));
+                    animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
 
-                var textEl = document.getElementById('niyaz-dialog-text');
-                textEl.innerHTML = '<b>Главный по БМВ</b><br><br>' +
-                    '— <b style="color:#9bc7ff">' + name + '</b> — отличная деталь, в руках опытного механика будет жить вечно!<br><br>' +
-                    '— Сделка закрыта: +<b style="color:#7ee07e">' + price.toLocaleString('ru-RU') + ' ₽</b> к моему балансу. ' +
-                    'Бери, не пожалеешь. И на сдачу — без обид!';
+                    var textEl = document.getElementById('niyaz-dialog-text');
+                    textEl.innerHTML = '<b>Главный по БМВ</b><br><br>' +
+                        '— <b style="color:#9bc7ff">' + name + '</b> — отличная деталь, в руках опытного механика будет жить вечно!<br><br>' +
+                        '— Сделка закрыта: +<b style="color:#7ee07e">' + price.toLocaleString('ru-RU') + ' ₽</b> к моему балансу. ' +
+                        'Бери, не пожалеешь. И на сдачу — без обид!';
+                }, function (err) {
+                    alert('Не хватает средств: ' + err);
+                });
             };
 
             window.buyNiyazCigar = function (name, price, btn) {
                 if (!btn || btn.disabled) return;
-                if (buyerWallet < price) {
-                    alert('Не хватает средств на покупку сигары ' + name + '!');
-                    return;
-                }
-                btn.disabled = true;
-                btn.textContent = '✅ Куплено';
-                btn.classList.add('sold');
+                checkBtcAndPay(price, function () {
+                    btn.disabled = true;
+                    btn.textContent = '✅ Куплено';
+                    btn.classList.add('sold');
 
-                var oldNiyaz = niyazWallet;
-                var oldBuyer = buyerWallet;
-                niyazWallet += price;
-                buyerWallet -= price;
+                    var oldNiyaz = niyazWallet;
+                    niyazWallet += price;
 
-                animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
-                animateWallet('buyer-balance-value', oldBuyer, buyerWallet, false, document.getElementById('buyer-balance'));
+                    animateWallet('niyaz-balance-value', oldNiyaz, niyazWallet, true, document.getElementById('niyaz-balance'));
 
-                var textEl = document.getElementById('niyaz-dialog-text');
-                textEl.innerHTML = '<b>Главный по БМВ</b><br><br>' +
-                    '— <b style="color:#e6be78">' + name + '</b>? Отличный выбор! Хороший вкус у тебя, уважаю.<br><br>' +
-                    '— Сделка закрыта: +<b style="color:#7ee07e">' + price.toLocaleString('ru-RU') + ' ₽</b> к моему балансу. ' +
-                    'Рад был иметь дело!<br><br>— И ты, я вижу, доволен покупкой. Наслаждайся сигарой, но помни — курить вредно для здоровья!';
+                    var textEl = document.getElementById('niyaz-dialog-text');
+                    textEl.innerHTML = '<b>Главный по БМВ</b><br><br>' +
+                        '— <b style="color:#e6be78">' + name + '</b>? Отличный выбор! Хороший вкус у тебя, уважаю.<br><br>' +
+                        '— Сделка закрыта: +<b style="color:#7ee07e">' + price.toLocaleString('ru-RU') + ' ₽</b> к моему балансу. ' +
+                        'Рад был иметь дело!<br><br>— И ты, я вижу, доволен покупкой. Наслаждайся сигарой, но помни — курить вредно для здоровья!';
+                }, function (err) {
+                    alert('Не хватает средств: ' + err);
+                });
             };
 
             // ---- Shelf goods for Niyaz: BMW parts + a few Cuban cigars ----

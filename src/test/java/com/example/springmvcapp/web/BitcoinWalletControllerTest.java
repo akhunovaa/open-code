@@ -121,7 +121,7 @@ class BitcoinWalletControllerTest {
     @Test
     void transactions_returnsList() throws Exception {
         when(walletService.transactions("wallet-1"))
-                .thenReturn(List.of(new TxInfo("tx1", 5000L, 1000L, List.of())));
+                .thenReturn(List.of(new TxInfo("tx1", 5000L, 1000L, List.of(), 3)));
 
         mockMvc.perform(get("/api/btc/wallet/wallet-1/transactions"))
                 .andExpect(status().isOk())
