@@ -31,7 +31,7 @@ import org.springframework.stereotype.Service;
  * Сервис, инкапсулирующий работу с биткоин-кошельками через библиотеку bitcoinj.
  *
  * <p>Сервис управляет детерминированными (BIP32/BIP39) кошельками в сети
- * {@code regtest} с типом адресов {@code P2WPKH}. Каждый кошелёк сериализуется
+ * {@code mainnet} с типом адресов {@code P2WPKH}. Каждый кошелёк сериализуется
  * в protobuf-файл формата bitcoinj и хранится в каталоге
  * {@value #STORAGE_DIR} (расширение {@code .wallet}).</p>
  *
@@ -56,7 +56,7 @@ public class BitcoinWalletService {
     /**
      * Сеть Bitcoin, в которой работают кошельки сервиса.
      */
-    private static final BitcoinNetwork NETWORK = BitcoinNetwork.REGTEST;
+    private static final BitcoinNetwork NETWORK = BitcoinNetwork.MAINNET;
 
     /**
      * Тип выходных скриптов (адресов), используемый для получаемых средств.
@@ -309,7 +309,7 @@ public class BitcoinWalletService {
          * Создаёт DTO с данными кошелька.
          *
          * @param id               идентификатор кошелька
-         * @param network          имя сети (например, {@code regtest})
+         * @param network          имя сети (например, {@code mainnet})
          * @param mnemonic         мнемоническая фраза BIP39
          * @param balanceSat       доступный баланс в сатоши
          * @param address          текущий receive-адрес
@@ -333,7 +333,7 @@ public class BitcoinWalletService {
         public String getId() { return id; }
 
         /**
-         * @return имя сети (например, {@code regtest})
+         * @return имя сети (например, {@code mainnet})
          */
         public String getNetwork() { return network; }
 

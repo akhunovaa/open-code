@@ -35,13 +35,13 @@ class BitcoinWalletControllerTest {
     void create_returnsWalletInfo() throws Exception {
         when(walletService.createWallet()).thenReturn("wallet-1");
         when(walletService.getWallet("wallet-1")).thenReturn(new WalletInfo(
-                "wallet-1", "regtest", "abandon abandon", 0L, "bcrt1qtest",
-                List.of("bcrt1qtest"), 0));
+                "wallet-1", "mainnet", "abandon abandon", 0L, "bc1qtest",
+                List.of("bc1qtest"), 0));
 
         mockMvc.perform(post("/api/btc/wallet"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("wallet-1"))
-                .andExpect(jsonPath("$.network").value("regtest"))
+                .andExpect(jsonPath("$.network").value("mainnet"))
                 .andExpect(jsonPath("$.mnemonic").isNotEmpty())
                 .andExpect(jsonPath("$.balanceSat").isNumber())
                 .andExpect(jsonPath("$.address").isNotEmpty());
@@ -51,13 +51,13 @@ class BitcoinWalletControllerTest {
     void createWithId_returnsWalletInfo() throws Exception {
         when(walletService.createWallet("user-42")).thenReturn("user-42");
         when(walletService.getWallet("user-42")).thenReturn(new WalletInfo(
-                "user-42", "regtest", "abandon abandon", 0L, "bcrt1quser",
-                List.of("bcrt1quser"), 0));
+                "user-42", "mainnet", "abandon abandon", 0L, "bc1quser",
+                List.of("bc1quser"), 0));
 
         mockMvc.perform(post("/api/btc/wallet/user-42"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("user-42"))
-                .andExpect(jsonPath("$.address").value("bcrt1quser"));
+                .andExpect(jsonPath("$.address").value("bc1quser"));
     }
 
     @Test
