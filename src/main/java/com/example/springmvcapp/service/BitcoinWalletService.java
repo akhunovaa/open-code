@@ -20,11 +20,13 @@ import org.bitcoinj.base.ScriptType;
 import org.bitcoinj.core.Context;
 import org.bitcoinj.core.InsufficientMoneyException;
 import org.bitcoinj.core.Transaction;
+import org.bitcoinj.core.TransactionConfidence;
 import org.bitcoinj.core.TransactionOutput;
 import org.bitcoinj.wallet.SendRequest;
 import org.bitcoinj.wallet.UnreadableWalletException;
 import org.bitcoinj.wallet.Wallet;
 import org.bitcoinj.wallet.Wallet.BalanceType;
+import org.bitcoinj.wallet.WalletTransaction;
 import org.springframework.stereotype.Service;
 
 /**
@@ -307,6 +309,61 @@ public class BitcoinWalletService {
                 tx.getTxId().toString(),
                 HexFormat.of().formatHex(tx.bitcoinSerialize()),
                 fee != null ? fee.toSat() : null);
+    }
+
+    /**
+     * Импортирует существующую транзакцию в кошелёк (для тестирования в regtest).
+     *
+     * <p>Транзакция десериализуется из hex и добавляется в кошелёк. Если выход
+     * транзакции отправлен на адрес кошелька, bitcoinj распознает его и учтёт в
+     * балансе. Глубина подтверждений задаётся параметром {@code depth}.</p>
+     *
+     * @param id    идентификатор кошелька
+     * @param hexTx hex-представление транзакции
+     * @param depth глубина подтверждений (0 — неподтверждённая, 1+ — подтверждена)
+     * @return {@link TxInfo} с данными импортированной транзакции
+     * @throws IOException               если не удалось загрузить/сохранить кошелёк
+     * @throws UnreadableWalletException если файл кошелька не читается
+     * @throws IllegalArgumentException  если hex некорректен
+     */
+    public TxInfo importTransaction(String id, String hexTx, int depth)
+            throws IOException, UnreadableWalletException {
+        Wallet wallet = loadOrCreate(id);
+        Context.getOrCreate();
+        byte[] raw;
+        try {
+            raw = HexFormat.of().parseHex(hexTx);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Некорректный hex транзакции: " + e.getMessage());
+        }
+        Transaction tx;
+        try {
+            tx = Transaction.read(java.nio.ByteBuffer.wrap(raw));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Не удалось десериализовать транзакцию: " + e.getMessage());
+        }
+        TransactionConfidence conf = tx.getConfidence();
+        if (depth > 0) {
+            conf.setConfidenceType(TransactionConfidence.ConfidenceType.BUILDING);
+            conf.setDepthInBlocks(depth);
+        } else {
+            conf.setConfidenceType(TransactionConfidence.ConfidenceType.PENDING);
+        }
+        wallet.addWalletTransaction(new WalletTransaction(
+                depth > 0 ? WalletTransaction.Pool.UNSPENT : WalletTransaction.Pool.PENDING, tx));
+        wallet.saveToFile(fileFor(id));
+
+        List<OutputInfo> outputs = new ArrayList<>();
+        for (TransactionOutput out : tx.getOutputs()) {
+            Address to = out.getScriptPubKey().getToAddress(network);
+            outputs.add(new OutputInfo(to.toString(), out.getValue().toSat()));
+        }
+        Coin fee = tx.getFee();
+        return new TxInfo(
+                tx.getTxId().toString(),
+                tx.getValue(wallet).toSat(),
+                fee != null ? fee.toSat() : null,
+                outputs);
     }
 
     /**

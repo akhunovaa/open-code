@@ -190,6 +190,27 @@ public class BitcoinWalletController {
     }
 
     /**
+     * Импортирует существующую транзакцию в кошелёк (для тестирования в regtest).
+     *
+     * <p>Позволяет добавить транзакцию, отправленную на адрес кошелька из внешнего
+     * источника (например, {@code bitcoin-cli sendtoaddress}), и указать глубину
+     * подтверждений. Используется для локального тестирования в сети regtest,
+     * где приложение bitcoinj не подключено к узлу по P2P.</p>
+     *
+     * @param id   идентификатор кошелька
+     * @param body тело запроса с полями {@code hex} (hex транзакции) и
+     *             {@code depth} (глубина подтверждений)
+     * @return {@link TxInfo} с данными импортированной транзакции
+     * @throws IOException               если не удалось загрузить/сохранить кошелёк
+     * @throws UnreadableWalletException если файл кошелька не читается
+     * @see BitcoinWalletService#importTransaction(String, String, int)
+     */
+    @PostMapping("/api/btc/wallet/{id}/import-tx")
+    public TxInfo importTx(@PathVariable String id, @RequestBody ImportTxRequest body) throws IOException, UnreadableWalletException {
+        return walletService.importTransaction(id, body.getHex(), body.getDepth());
+    }
+
+    /**
      * Обрабатывает ошибки ввода-вывода и возвращает ответ с кодом {@code 500}.
      *
      * @param e перехваченное исключение ввода-вывода
@@ -241,5 +262,33 @@ public class BitcoinWalletController {
          * @param amountSat сумма перевода в сатоши
          */
         public void setAmountSat(long amountSat) { this.amountSat = amountSat; }
+    }
+
+    /**
+     * Тело запроса для импорта транзакции через {@link #importTx}.
+     */
+    public static class ImportTxRequest {
+        private String hex;
+        private int depth;
+
+        /**
+         * @return hex-представление транзакции
+         */
+        public String getHex() { return hex; }
+
+        /**
+         * @param hex hex-представление транзакции
+         */
+        public void setHex(String hex) { this.hex = hex; }
+
+        /**
+         * @return глубина подтверждений (0 — неподтверждённая)
+         */
+        public int getDepth() { return depth; }
+
+        /**
+         * @param depth глубина подтверждений (0 — неподтверждённая)
+         */
+        public void setDepth(int depth) { this.depth = depth; }
     }
 }
