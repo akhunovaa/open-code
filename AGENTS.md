@@ -4,7 +4,8 @@
 
 ## Команды
 
-- Запуск приложения (dev-сервер на http://localhost:8080): `mvn spring-boot:run`
+- Запуск приложения (dev-сервер на http://localhost:8080): `BTC_STORAGE_DIR=/Users/azatakhunov/temp/btc mvn spring-boot:run`
+- Запуск приложения с портом 8080 свободным: перед запуском `lsof -ti:8080 | xargs kill -9`
 - Сборка: `mvn clean package`
 - Компиляция без сборки артефакта: `mvn compile`
 - Тесты: `mvn test`

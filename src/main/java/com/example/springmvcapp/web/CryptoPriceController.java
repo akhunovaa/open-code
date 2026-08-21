@@ -17,7 +17,7 @@ import com.example.springmvcapp.service.BtcPriceService.CachedPrice;
  * <p>Предоставляет HTTP API для:</p>
  * <ul>
  *     <li>{@code GET /api/btc-price} — запрос свежего курса у Binance и сохранение
- *         в {@code /data/btc-price.json};</li>
+ *         в {@code btc-price.json} в каталоге хранения;</li>
  *     <li>{@code GET /api/btc-price/cached} — получение последнего сохранённого
  *         курса без обращения к бирже.</li>
  * </ul>

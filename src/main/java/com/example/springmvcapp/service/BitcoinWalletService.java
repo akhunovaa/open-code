@@ -33,7 +33,8 @@ import org.springframework.stereotype.Service;
  * <p>Сервис управляет детерминированными (BIP32/BIP39) кошельками в сети
  * {@code mainnet} с типом адресов {@code P2WPKH}. Каждый кошелёк сериализуется
  * в protobuf-файл формата bitcoinj и хранится в каталоге
- * {@value #STORAGE_DIR} (расширение {@code .wallet}).</p>
+ * {@code storageDir} (расширение {@code .wallet}), путь задаётся свойством
+ * {@code btc.storage-dir} (по умолчанию {@code /data}).</p>
  *
  * <p>Загруженные кошельки кэшируются в памяти и автоматически сохраняются на диск
  * при изменениях (автосейв с задержкой 500 мс). Идентификатор кошелька равен
@@ -51,7 +52,7 @@ public class BitcoinWalletService {
     /**
      * Каталог хранения файлов кошельков.
      */
-    public static final Path STORAGE_DIR = Paths.get("/data");
+    private final Path storageDir;
 
     /**
      * Сеть Bitcoin, в которой работают кошельки сервиса.
@@ -74,13 +75,22 @@ public class BitcoinWalletService {
     private final AddressParser addressParser = AddressParser.getDefault(NETWORK);
 
     /**
+     * Создаёт сервис с заданным каталогом хранения кошельков.
+     *
+     * @param storageDir путь к каталогу хранения (из свойства {@code btc.storage-dir})
+     */
+    public BitcoinWalletService(@org.springframework.beans.factory.annotation.Value("${btc.storage-dir:/data}") String storageDir) {
+        this.storageDir = Paths.get(storageDir);
+    }
+
+    /**
      * Возвращает файл кошелька по его идентификатору.
      *
      * @param id идентификатор кошелька
-     * @return файл {@code <STORAGE_DIR>/<id>.wallet}
+     * @return файл {@code <storageDir>/<id>.wallet}
      */
     private synchronized File fileFor(String id) {
-        return STORAGE_DIR.resolve(id + ".wallet").toFile();
+        return storageDir.resolve(id + ".wallet").toFile();
     }
 
     /**
@@ -112,7 +122,7 @@ public class BitcoinWalletService {
     /**
      * Создаёт новый кошелёк с уникальным идентификатором.
      *
-     * <p>Создаётся UUID-идентификатор, каталог {@link #STORAGE_DIR} создаётся при
+     * <p>Создаётся UUID-идентификатор, каталог {@code storageDir} создаётся при
      * необходимости, кошелёк немедленно сохраняется на диск. При последующих
      * обращениях кошелёк восстанавливается из файла.</p>
      *
@@ -128,7 +138,7 @@ public class BitcoinWalletService {
      * Создаёт новый кошелёк с указанным идентификатором.
      *
      * <p>Идентификатор используется как имя файла кошелька, поэтому он должен быть
-     * уникальным в рамках {@link #STORAGE_DIR}. Если кошелёк с таким идентификатором
+     * уникальным в рамках {@code storageDir}. Если кошелёк с таким идентификатором
      * уже существует, он не пересоздаётся.</p>
      *
      * @param id идентификатор кошелька (имя файла без расширения)
@@ -137,7 +147,7 @@ public class BitcoinWalletService {
      * @throws UnreadableWalletException если созданный кошелёк не удалось загрузить
      */
     public String createWallet(String id) throws IOException, UnreadableWalletException {
-        Files.createDirectories(STORAGE_DIR);
+        Files.createDirectories(storageDir);
         loadOrCreate(id).saveToFile(fileFor(id));
         return id;
     }
@@ -145,7 +155,7 @@ public class BitcoinWalletService {
     /**
      * Возвращает идентификаторы всех сохранённых кошельков.
      *
-     * <p>Сканирует {@link #STORAGE_DIR} и возвращает имена файлов с расширением
+     * <p>Сканирует {@code storageDir} и возвращает имена файлов с расширением
      * {@code .wallet} без расширения. Если каталога не существует, возвращается
      * пустой список.</p>
      *
@@ -153,11 +163,11 @@ public class BitcoinWalletService {
      * @throws IOException если не удалось прочитать каталог хранения
      */
     public List<String> listWallets() throws IOException {
-        if (!Files.isDirectory(STORAGE_DIR)) {
+        if (!Files.isDirectory(storageDir)) {
             return List.of();
         }
         List<String> ids = new ArrayList<>();
-        try (var stream = Files.list(STORAGE_DIR)) {
+        try (var stream = Files.list(storageDir)) {
             stream.filter(p -> p.toString().endsWith(".wallet"))
                     .forEach(p -> ids.add(p.getFileName().toString().replace(".wallet", "")));
         }

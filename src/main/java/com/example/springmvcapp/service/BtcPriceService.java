@@ -22,7 +22,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * Сервис для получения и кэширования курса биткоина.
  *
  * <p>Свежий курс запрашивается у Binance API (BTCUSDT, BTCRUB) и сохраняется
- * в файл {@code /data/btc-price.json} вместе с меткой
+ * в файл {@code btc-price.json} в каталоге хранения вместе с меткой
  * времени сохранения. При последующих обращениях можно получить сохранённый
  * курс без нового запроса к бирже через {@link #getCachedPrice()}.</p>
  */
@@ -30,15 +30,18 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public class BtcPriceService {
 
     /** Каталог хранения файла с кэшем курса (совпадает с каталогом кошельков). */
-    public static final Path STORAGE_DIR = Paths.get("/data");
+    private final Path storageDir;
 
-    private static final Path PRICE_FILE = STORAGE_DIR.resolve("btc-price.json");
+    private final Path priceFile;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public BtcPriceService(HttpClient httpClient) {
+    public BtcPriceService(HttpClient httpClient,
+                           @org.springframework.beans.factory.annotation.Value("${btc.storage-dir:/data}") String storageDir) {
         this.httpClient = httpClient;
+        this.storageDir = Paths.get(storageDir);
+        this.priceFile = this.storageDir.resolve("btc-price.json");
     }
 
     /**
@@ -47,11 +50,11 @@ public class BtcPriceService {
      * @return {@link Optional} с {@link CachedPrice} или пустой, если кэша нет
      */
     public Optional<CachedPrice> getCachedPrice() {
-        if (!Files.exists(PRICE_FILE)) {
+        if (!Files.exists(priceFile)) {
             return Optional.empty();
         }
         try {
-            JsonNode node = objectMapper.readTree(Files.readString(PRICE_FILE));
+            JsonNode node = objectMapper.readTree(Files.readString(priceFile));
             String priceUsd = node.path("priceUsd").asText();
             String priceRub = node.path("priceRub").asText();
             String savedAt = node.path("savedAt").asText();
@@ -81,12 +84,12 @@ public class BtcPriceService {
 
     private void savePrice(CachedPrice price) {
         try {
-            Files.createDirectories(STORAGE_DIR);
+            Files.createDirectories(storageDir);
             ObjectNode node = objectMapper.createObjectNode();
             node.put("priceUsd", price.getPriceUsd());
             node.put("priceRub", price.getPriceRub());
             node.put("savedAt", price.getSavedAt());
-            Files.writeString(PRICE_FILE, objectMapper.writeValueAsString(node));
+            Files.writeString(priceFile, objectMapper.writeValueAsString(node));
         } catch (IOException e) {
             // кэш не критичен — игнорируем ошибку записи
         }
