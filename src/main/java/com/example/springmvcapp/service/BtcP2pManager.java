@@ -11,6 +11,8 @@ import org.bitcoinj.net.discovery.DnsDiscovery;
 import org.bitcoinj.params.BitcoinNetworkParams;
 import org.bitcoinj.store.SPVBlockStore;
 import org.bitcoinj.wallet.Wallet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.annotation.PreDestroy;
 
@@ -30,6 +32,8 @@ import jakarta.annotation.PreDestroy;
  * жизненный цикл P2P-подключения, а не за логику кошельков.</p>
  */
 public class BtcP2pManager {
+
+    private static final Logger log = LoggerFactory.getLogger(BtcP2pManager.class);
 
     private final BitcoinNetwork network;
     private final Path storageDir;
@@ -55,6 +59,7 @@ public class BtcP2pManager {
      */
     public void start() {
         if (network != BitcoinNetwork.MAINNET) {
+            log.info("P2P не запускается: сеть {} (только mainnet)", network);
             return;
         }
         try {
@@ -67,7 +72,9 @@ public class BtcP2pManager {
             peerGroup.addPeerDiscovery(new DnsDiscovery(network));
             peerGroup.startAsync();
             peerGroup.start();
+            log.info("P2P запущен для mainnet: SPV-синхронизация началась");
         } catch (Exception e) {
+            log.warn("P2P не запустился: {}", e.getMessage(), e);
             peerGroup = null;
         }
     }
@@ -80,6 +87,7 @@ public class BtcP2pManager {
     public void addWallet(Wallet wallet) {
         if (peerGroup != null) {
             peerGroup.addWallet(wallet);
+            log.info("Кошелёк зарегистрирован в P2P-сети");
         }
     }
 
