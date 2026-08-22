@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.springmvcapp.service.BitcoinWalletService;
-import com.example.springmvcapp.service.BitcoinWalletService.SendResult;
-import com.example.springmvcapp.service.BitcoinWalletService.TxInfo;
-import com.example.springmvcapp.service.BitcoinWalletService.WalletInfo;
+import com.example.springmvcapp.service.dto.SendResult;
+import com.example.springmvcapp.service.dto.TxInfo;
+import com.example.springmvcapp.service.dto.WalletInfo;
 import org.bitcoinj.wallet.UnreadableWalletException;
 
 /**

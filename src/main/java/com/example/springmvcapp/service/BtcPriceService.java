@@ -12,8 +12,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.example.springmvcapp.service.dto.CachedPrice;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -22,30 +24,40 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * Сервис для получения и кэширования курса биткоина.
  *
  * <p>Свежий курс запрашивается у Binance API (BTCUSDT, BTCRUB) и сохраняется
- * в файл {@code btc-price.json} в каталоге хранения вместе с меткой
- * времени сохранения. При последующих обращениях можно получить сохранённый
- * курс без нового запроса к бирже через {@link #getCachedPrice()}.</p>
+ * в файл {@code btc-price.json} в каталоге хранения с меткой времени.
+ * Кэш можно прочитать без запроса к бирже через {@link #getCachedPrice()}.</p>
+ *
+ * <p>Все методы синхронизированы для защиты от гонок при параллельной записи
+ * файла кэша.</p>
+ *
+ * @see CachedPrice
  */
 @Service
 public class BtcPriceService {
 
-    /** Каталог хранения файла с кэшем курса (совпадает с каталогом кошельков). */
+    private static final String BINANCE_API = "https://api.binance.com/api/v3/ticker/price?symbol=";
+    private static final String PRICE_ERROR = "ошибка получения цены";
+
     private final Path storageDir;
-
     private final Path priceFile;
-
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * Создаёт сервис курса биткоина.
+     *
+     * @param httpClient HTTP-клиент для запросов к Binance
+     * @param storageDir каталог хранения файла кэша (свойство {@code btc.storage-dir})
+     */
     public BtcPriceService(HttpClient httpClient,
-                           @org.springframework.beans.factory.annotation.Value("${btc.storage-dir:/data}") String storageDir) {
+                           @Value("${btc.storage-dir:/data}") String storageDir) {
         this.httpClient = httpClient;
         this.storageDir = Paths.get(storageDir);
         this.priceFile = this.storageDir.resolve("btc-price.json");
     }
 
     /**
-     * Возвращает сохранённый курс биткоина, если файл кэша существует.
+     * Возвращает сохранённый курс, если файл кэша существует.
      *
      * @return {@link Optional} с {@link CachedPrice} или пустой, если кэша нет
      */
@@ -68,8 +80,7 @@ public class BtcPriceService {
     }
 
     /**
-     * Запрашивает свежий курс биткоина у Binance, сохраняет его в файл кэша
-     * (перезаписывая старые данные) и возвращает результат.
+     * Запрашивает свежий курс у Binance, сохраняет в кэш и возвращает.
      *
      * @return {@link CachedPrice} с актуальными ценами и меткой времени
      */
@@ -82,23 +93,34 @@ public class BtcPriceService {
         return result;
     }
 
+    /**
+     * Сохраняет курс в файл кэша.
+     *
+     * @param price данные курса для сохранения
+     */
     private synchronized void savePrice(CachedPrice price) {
         try {
             Files.createDirectories(storageDir);
             ObjectNode node = objectMapper.createObjectNode();
-            node.put("priceUsd", price.getPriceUsd());
-            node.put("priceRub", price.getPriceRub());
-            node.put("savedAt", price.getSavedAt());
+            node.put("priceUsd", price.priceUsd());
+            node.put("priceRub", price.priceRub());
+            node.put("savedAt", price.savedAt());
             Files.writeString(priceFile, objectMapper.writeValueAsString(node));
         } catch (IOException e) {
             // кэш не критичен — игнорируем ошибку записи
         }
     }
 
+    /**
+     * Запрашивает цену у Binance API по символу (BTCUSDT, BTCRUB).
+     *
+     * @param symbol торговый символ Binance
+     * @return цена строкой или сообщение об ошибке
+     */
     private String fetchPrice(String symbol) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.binance.com/api/v3/ticker/price?symbol=" + symbol))
+                    .uri(URI.create(BINANCE_API + symbol))
                     .timeout(Duration.ofSeconds(10))
                     .GET()
                     .build();
@@ -113,27 +135,6 @@ public class BtcPriceService {
         } catch (Exception e) {
             // fall through to error response
         }
-        return "ошибка получения цены";
-    }
-
-    /**
-     * DTO с кэшированным курсом биткоина.
-     */
-    public static class CachedPrice {
-        private final String priceUsd;
-        private final String priceRub;
-        private final String savedAt;
-
-        public CachedPrice(String priceUsd, String priceRub, String savedAt) {
-            this.priceUsd = priceUsd;
-            this.priceRub = priceRub;
-            this.savedAt = savedAt;
-        }
-
-        public String getPriceUsd() { return priceUsd; }
-
-        public String getPriceRub() { return priceRub; }
-
-        public String getSavedAt() { return savedAt; }
+        return PRICE_ERROR;
     }
 }

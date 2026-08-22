@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.springmvcapp.service.BtcPriceService;
-import com.example.springmvcapp.service.BtcPriceService.CachedPrice;
+import com.example.springmvcapp.service.dto.CachedPrice;
 
 /**
  * REST-контроллер для получения и кэширования курса биткоина.

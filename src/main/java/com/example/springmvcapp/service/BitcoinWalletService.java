@@ -27,68 +27,74 @@ import org.bitcoinj.wallet.UnreadableWalletException;
 import org.bitcoinj.wallet.Wallet;
 import org.bitcoinj.wallet.Wallet.BalanceType;
 import org.bitcoinj.wallet.WalletTransaction;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.example.springmvcapp.service.dto.OutputInfo;
+import com.example.springmvcapp.service.dto.SendResult;
+import com.example.springmvcapp.service.dto.TxInfo;
+import com.example.springmvcapp.service.dto.WalletInfo;
+
 /**
- * Сервис, инкапсулирующий работу с биткоин-кошельками через библиотеку bitcoinj.
+ * Сервис для управления биткоин-кошельками через библиотеку bitcoinj.
  *
- * <p>Сервис управляет детерминированными (BIP32/BIP39) кошельками с типом адресов
+ * <p>Управляет детерминированными (BIP32/BIP39) кошельками с типом адресов
  * {@code P2WPKH}. Сеть задаётся свойством {@code btc.network} (по умолчанию
  * {@code mainnet}; для тестирования — {@code regtest}, {@code testnet} или
- * {@code signet}). Каждый кошелёк сериализуется в protobuf-файл формата bitcoinj
- * и хранится в каталоге {@code storageDir} (расширение {@code .wallet}), путь
- * задаётся свойством {@code btc.storage-dir} (по умолчанию {@code /data}).</p>
+ * {@code signet}). Каждый кошелёк сериализуется в protobuf-файл и хранится
+ * в каталоге, заданном свойством {@code btc.storage-dir} (по умолчанию
+ * {@code /data}).</p>
  *
- * <p>Загруженные кошельки кэшируются в памяти и автоматически сохраняются на диск
- * при изменениях (автосейв с задержкой 500 мс). Идентификатор кошелька равен
- * имени файла без расширения.</p>
+ * <p>Кошельки кэшируются в памяти и автоматически сохраняются на диск
+ * (автосейв с задержкой 500 мс). Все методы синхронизированы для защиты
+ * от гонок при параллельной записи. Для mainnet автоматически запускается
+ * P2P-подключение через {@link BtcP2pManager}.</p>
  *
- * <p>Набор операций соответствует потребностям REST API:
- * создание кошелька, получение адресов и баланса, просмотр транзакций
- * и оффлайн-отправка средств (без трансляции в сеть Bitcoin).</p>
+ * <p><b>SOLID:</b></p>
+ * <ul>
+ *   <li><b>S</b> — сервис отвечает только за операции с кошельками;
+ *       P2P-управление вынесено в {@link BtcP2pManager},
+ *       DTO — в {@code service.dto}</li>
+ *   <li><b>O</b> — DTO являются {@code record}, расширение через новые записи
+ *       без изменения существующих</li>
+ *   <li><b>L</b> — все методы можно переопределить в подклассе без нарушения
+ *       контракта</li>
+ *   <li><b>I</b> — публичный API разделён на группы: создание/листинг,
+ *       адреса, баланс, транзакции, отправка</li>
+ *   <li><b>D</b> — зависит от абстракций ({@link BitcoinNetwork},
+ *       {@link BtcP2pManager}), а не от конкретных реализаций</li>
+ * </ul>
  *
+ * @see BtcP2pManager
  * @see <a href="https://bitcoinj.org/javadoc/0.17.1/">bitcoinj 0.17.1 javadoc</a>
  */
 @Service
 public class BitcoinWalletService {
 
-    /**
-     * Каталог хранения файлов кошельков.
-     */
-    private final Path storageDir;
-
-    /**
-     * Сеть Bitcoin, в которой работают кошельки сервиса.
-     */
-    private final BitcoinNetwork network;
-
-    /**
-     * Тип выходных скриптов (адресов), используемый для получаемых средств.
-     */
+    private static final int CONFIRMATION_THRESHOLD = 3;
     private static final ScriptType SCRIPT_TYPE = ScriptType.P2WPKH;
 
-    /**
-     * Кэш загруженных кошельков: идентификатор кошелька → экземпляр {@link Wallet}.
-     */
-    private final Map<String, Wallet> cache = new ConcurrentHashMap<>();
-
-    /**
-     * Парсер адресов для сети {@link #network}.
-     */
+    private final Path storageDir;
+    private final BitcoinNetwork network;
     private final AddressParser addressParser;
+    private final Map<String, Wallet> cache = new ConcurrentHashMap<>();
+    private final BtcP2pManager p2pManager;
 
     /**
-     * Создаёт сервис с заданным каталогом хранения и сетью.
+     * Создаёт сервис кошельков.
      *
-     * @param storageDir путь к каталогу хранения (из свойства {@code btc.storage-dir})
-     * @param network    имя сети Bitcoin: {@code mainnet}, {@code regtest},
-     *                   {@code testnet} или {@code signet} (из свойства {@code btc.network})
+     * @param storageDir путь к каталогу хранения (свойство {@code btc.storage-dir})
+     * @param network    имя сети: {@code mainnet}, {@code regtest}, {@code testnet},
+     *                   {@code signet} (свойство {@code btc.network})
      */
-    public BitcoinWalletService(@org.springframework.beans.factory.annotation.Value("${btc.storage-dir:/data}") String storageDir,
-                                @org.springframework.beans.factory.annotation.Value("${btc.network:mainnet}") String network) {
+    public BitcoinWalletService(
+            @Value("${btc.storage-dir:/data}") String storageDir,
+            @Value("${btc.network:mainnet}") String network) {
         this.storageDir = Paths.get(storageDir);
         this.network = BitcoinNetwork.valueOf(network.toUpperCase());
         this.addressParser = AddressParser.getDefault(this.network);
+        this.p2pManager = new BtcP2pManager(this.network, this.storageDir);
+        this.p2pManager.start();
     }
 
     /**
@@ -104,10 +110,11 @@ public class BitcoinWalletService {
     /**
      * Загружает кошелёк из кэша или с диска, при необходимости создавая новый.
      *
-     * <p>Если кошелёк уже есть в {@link #cache}, возвращается он. Иначе, если файл
-     * {@code <id>.wallet} существует, кошелёк десериализуется из него; в противном
-     * случае создаётся новый детерминированный кошелёк. После загрузки включается
-     * автосейв и кошелёк помещается в кэш.</p>
+     * <p>Если кошелёк уже есть в кэше, возвращается он. Иначе, если файл
+     * {@code <id>.wallet} существует, кошелёк десериализуется; в противном случае
+     * создаётся новый детерминированный кошелёк. После загрузки включается
+     * автосейв, кошелёк регистрируется в P2P-сети (для mainnet) и помещается
+     * в кэш.</p>
      *
      * @param id идентификатор кошелька
      * @return загруженный или созданный кошелёк
@@ -123,16 +130,15 @@ public class BitcoinWalletService {
         Wallet wallet = file.exists() ? Wallet.loadFromFile(file)
                 : Wallet.createDeterministic(network, SCRIPT_TYPE);
         wallet.autosaveToFile(file, java.time.Duration.ofMillis(500), null);
+        p2pManager.addWallet(wallet);
         cache.put(id, wallet);
         return wallet;
     }
 
+    // ─── Создание и листинг ───────────────────────────────────────────
+
     /**
-     * Создаёт новый кошелёк с уникальным идентификатором.
-     *
-     * <p>Создаётся UUID-идентификатор, каталог {@code storageDir} создаётся при
-     * необходимости, кошелёк немедленно сохраняется на диск. При последующих
-     * обращениях кошелёк восстанавливается из файла.</p>
+     * Создаёт новый кошелёк со случайным UUID-идентификатором.
      *
      * @return идентификатор созданного кошелька
      * @throws IOException               если не удалось создать каталог или сохранить файл
@@ -144,10 +150,6 @@ public class BitcoinWalletService {
 
     /**
      * Создаёт новый кошелёк с указанным идентификатором.
-     *
-     * <p>Идентификатор используется как имя файла кошелька, поэтому он должен быть
-     * уникальным в рамках {@code storageDir}. Если кошелёк с таким идентификатором
-     * уже существует, он не пересоздаётся.</p>
      *
      * @param id идентификатор кошелька (имя файла без расширения)
      * @return идентификатор созданного кошелька
@@ -163,11 +165,7 @@ public class BitcoinWalletService {
     /**
      * Возвращает идентификаторы всех сохранённых кошельков.
      *
-     * <p>Сканирует {@code storageDir} и возвращает имена файлов с расширением
-     * {@code .wallet} без расширения. Если каталога не существует, возвращается
-     * пустой список.</p>
-     *
-     * @return список идентификаторов кошельков
+     * @return список идентификаторов (пустой, если каталога нет)
      * @throws IOException если не удалось прочитать каталог хранения
      */
     public synchronized List<String> listWallets() throws IOException {
@@ -182,13 +180,10 @@ public class BitcoinWalletService {
         return ids;
     }
 
+    // ─── Информация о кошельке ───────────────────────────────────────
+
     /**
      * Возвращает полную информацию о кошельке.
-     *
-     * <p>Помимо идентификатора и сети возвращаются мнемоническая фраза (BIP39),
-     * доступный баланс в сатоши, последний выданный receive-адрес, список всех
-     * выданных адресов и количество транзакций. Метод не генерирует новые адреса —
-     * для этого используется {@link #freshAddress(String)}.</p>
      *
      * @param id идентификатор кошелька
      * @return {@link WalletInfo} с данными кошелька
@@ -215,7 +210,7 @@ public class BitcoinWalletService {
      * Генерирует свежий receive-адрес кошелька.
      *
      * @param id идентификатор кошелька
-     * @return строка с новым адресом в формате bech32
+     * @return новый адрес в формате bech32
      * @throws IOException               если не удалось загрузить кошелёк
      * @throws UnreadableWalletException если файл кошелька не читается
      */
@@ -223,11 +218,13 @@ public class BitcoinWalletService {
         return loadOrCreate(id).freshReceiveAddress().toString();
     }
 
+    // ─── Баланс ──────────────────────────────────────────────────────
+
     /**
      * Возвращает доступный баланс кошелька в сатоши.
      *
      * @param id идентификатор кошелька
-     * @return баланс в сатоши (тип {@link BalanceType#AVAILABLE})
+     * @return баланс в сатоши ({@link BalanceType#AVAILABLE})
      * @throws IOException               если не удалось загрузить кошелёк
      * @throws UnreadableWalletException если файл кошелька не читается
      */
@@ -236,44 +233,8 @@ public class BitcoinWalletService {
     }
 
     /**
-     * Возвращает транзакции кошелька, отсортированные по времени.
-     *
-     * <p>Для каждой транзакции формируется {@link TxInfo} с идентификатором,
-     * изменением баланса, комиссией и списком выходов (адрес получателя + сумма).
-     * Адрес выхода вычисляется из скрипта {@code scriptPubKey}.</p>
-     *
-     * @param id идентификатор кошелька
-     * @return список {@link TxInfo} с транзакциями
-     * @throws IOException               если не удалось загрузить кошелёк
-     * @throws UnreadableWalletException если файл кошелька не читается
-     */
-    public synchronized List<TxInfo> transactions(String id) throws IOException, UnreadableWalletException {
-        Wallet wallet = loadOrCreate(id);
-        List<TxInfo> result = new ArrayList<>();
-        for (Transaction tx : wallet.getTransactionsByTime()) {
-            List<OutputInfo> outputs = new ArrayList<>();
-            for (TransactionOutput out : tx.getOutputs()) {
-                Address to = out.getScriptPubKey().getToAddress(network);
-                outputs.add(new OutputInfo(to.toString(), out.getValue().toSat()));
-            }
-            Coin fee = tx.getFee();
-            int depth = tx.getConfidence().getDepthInBlocks();
-            result.add(new TxInfo(
-                    tx.getTxId().toString(),
-                    tx.getValue(wallet).toSat(),
-                    fee != null ? fee.toSat() : null,
-                    outputs,
-                    depth));
-        }
-        return result;
-    }
-
-    /**
-     * Возвращает подтверждённый баланс кошелька в сатоши.
-     *
-     * <p>Суммируются только входящие транзакции с подтверждениями ≥ 3 блоков
-     * (значение &gt; 0 и depth ≥ 3). Транзакции с &lt; 3 подтверждений в баланс
-     * не входят.</p>
+     * Возвращает подтверждённый баланс — сумму входящих транзакций
+     * с подтверждениями ≥ {@value #CONFIRMATION_THRESHOLD} блоков.
      *
      * @param id идентификатор кошелька
      * @return подтверждённый баланс в сатоши
@@ -284,20 +245,38 @@ public class BitcoinWalletService {
         Wallet wallet = loadOrCreate(id);
         long sum = 0;
         for (Transaction tx : wallet.getTransactionsByTime()) {
-            int depth = tx.getConfidence().getDepthInBlocks();
-            long value = tx.getValue(wallet).toSat();
-            if (depth >= 3 && value > 0) {
-                sum += value;
+            if (isConfirmed(tx) && tx.getValue(wallet).toSat() > 0) {
+                sum += tx.getValue(wallet).toSat();
             }
         }
         return sum;
     }
 
+    // ─── Транзакции ──────────────────────────────────────────────────
+
     /**
-     * Возвращает неподтверждённые входящие транзакции (depth &lt; 3).
+     * Возвращает все транзакции кошелька, отсортированные по времени.
      *
      * @param id идентификатор кошелька
-     * @return список {@link TxInfo} с подтверждениями &lt; 3
+     * @return список {@link TxInfo}
+     * @throws IOException               если не удалось загрузить кошелёк
+     * @throws UnreadableWalletException если файл кошелька не читается
+     */
+    public synchronized List<TxInfo> transactions(String id) throws IOException, UnreadableWalletException {
+        Wallet wallet = loadOrCreate(id);
+        List<TxInfo> result = new ArrayList<>();
+        for (Transaction tx : wallet.getTransactionsByTime()) {
+            result.add(toTxInfo(tx, wallet));
+        }
+        return result;
+    }
+
+    /**
+     * Возвращает неподтверждённые входящие транзакции
+     * (глубина &lt; {@value #CONFIRMATION_THRESHOLD}).
+     *
+     * @param id идентификатор кошелька
+     * @return список {@link TxInfo} с неподтверждёнными транзакциями
      * @throws IOException               если не удалось загрузить кошелёк
      * @throws UnreadableWalletException если файл кошелька не читается
      */
@@ -305,63 +284,34 @@ public class BitcoinWalletService {
         Wallet wallet = loadOrCreate(id);
         List<TxInfo> result = new ArrayList<>();
         for (Transaction tx : wallet.getTransactionsByTime()) {
-            int depth = tx.getConfidence().getDepthInBlocks();
-            long value = tx.getValue(wallet).toSat();
-            if (depth < 3 && value > 0) {
-                List<OutputInfo> outputs = new ArrayList<>();
-                for (TransactionOutput out : tx.getOutputs()) {
-                    Address to = out.getScriptPubKey().getToAddress(network);
-                    outputs.add(new OutputInfo(to.toString(), out.getValue().toSat()));
-                }
-                Coin fee = tx.getFee();
-                result.add(new TxInfo(
-                        tx.getTxId().toString(),
-                        value,
-                        fee != null ? fee.toSat() : null,
-                        outputs,
-                        depth));
+            if (!isConfirmed(tx) && tx.getValue(wallet).toSat() > 0) {
+                result.add(toTxInfo(tx, wallet));
             }
         }
         return result;
     }
 
+    // ─── Отправка и импорт ───────────────────────────────────────────
+
     /**
      * Создаёт и подписывает транзакцию отправки средств без трансляции в сеть.
-     *
-     * <p>Адрес получателя парсится парсером {@link #addressParser}, после чего
-     * формируется запрос {@link SendRequest#to} и выполняется
-     * {@link Wallet#sendCoinsOffline}. Готовый кошелёк сохраняется на диск.
-     * При нехватке средств выбрасывается {@link IllegalArgumentException}.</p>
      *
      * @param id        идентификатор кошелька-отправителя
      * @param toAddress адрес получателя в формате сети кошелька
      * @param amountSat сумма перевода в сатоши
-     * @return {@link SendResult} с идентификатором транзакции, hex-представлением
-     *         и комиссией
+     * @return {@link SendResult} с идентификатором, hex и комиссией
      * @throws IOException               если не удалось загрузить/сохранить кошелёк
      * @throws UnreadableWalletException если файл кошелька не читается
      * @throws IllegalArgumentException  если адрес некорректен, недостаточно средств,
      *                                   сумма ниже dust-порога или транзакция не проходит валидацию
      */
-    public synchronized SendResult send(String id, String toAddress, long amountSat) throws IOException, UnreadableWalletException {
+    public synchronized SendResult send(String id, String toAddress, long amountSat)
+            throws IOException, UnreadableWalletException {
         Wallet wallet = loadOrCreate(id);
         Address destination = addressParser.parseAddress(toAddress);
         Context.getOrCreate();
         SendRequest request = SendRequest.to(destination, Coin.ofSat(amountSat));
-        Transaction tx;
-        try {
-            tx = wallet.sendCoinsOffline(request);
-        } catch (InsufficientMoneyException e) {
-            throw new IllegalArgumentException("Недостаточно средств на балансе кошелька");
-        } catch (Wallet.DustySendRequested e) {
-            throw new IllegalArgumentException("Сумма перевода слишком мала (ниже dust-порога для P2WPKH-адресов)");
-        } catch (Wallet.CouldNotAdjustDownwards e) {
-            throw new IllegalArgumentException("Не удалось уменьшить сумму перевода: "
-                    + e.getMessage());
-        } catch (Wallet.ExceededMaxTransactionSize e) {
-            throw new IllegalArgumentException("Транзакция превышает максимально допустимый размер: "
-                    + e.getMessage());
-        }
+        Transaction tx = executeSend(wallet, request);
         wallet.saveToFile(fileFor(id));
         Coin fee = tx.getFee();
         return new SendResult(
@@ -373,13 +323,9 @@ public class BitcoinWalletService {
     /**
      * Импортирует существующую транзакцию в кошелёк (для тестирования в regtest).
      *
-     * <p>Транзакция десериализуется из hex и добавляется в кошелёк. Если выход
-     * транзакции отправлен на адрес кошелька, bitcoinj распознает его и учтёт в
-     * балансе. Глубина подтверждений задаётся параметром {@code depth}.</p>
-     *
      * @param id    идентификатор кошелька
      * @param hexTx hex-представление транзакции
-     * @param depth глубина подтверждений (0 — неподтверждённая, 1+ — подтверждена)
+     * @param depth глубина подтверждений (0 — неподтверждённая)
      * @return {@link TxInfo} с данными импортированной транзакции
      * @throws IOException               если не удалось загрузить/сохранить кошелёк
      * @throws UnreadableWalletException если файл кошелька не читается
@@ -389,18 +335,66 @@ public class BitcoinWalletService {
             throws IOException, UnreadableWalletException {
         Wallet wallet = loadOrCreate(id);
         Context.getOrCreate();
+        Transaction tx = deserializeTransaction(hexTx);
+        setTransactionConfidence(tx, depth);
+        wallet.addWalletTransaction(new WalletTransaction(
+                depth > 0 ? WalletTransaction.Pool.UNSPENT : WalletTransaction.Pool.PENDING, tx));
+        wallet.saveToFile(fileFor(id));
+        return toTxInfo(tx, wallet);
+    }
+
+    // ─── Вспомогательные методы ──────────────────────────────────────
+
+    /**
+     * Выполняет {@link Wallet#sendCoinsOffline} с обработкой ошибок.
+     *
+     * @param wallet  кошелёк-отправитель
+     * @param request запрос на отправку
+     * @return подписанная транзакция
+     * @throws IllegalArgumentException при нехватке средств, dust-пороге и др.
+     */
+    private Transaction executeSend(Wallet wallet, SendRequest request) {
+        try {
+            return wallet.sendCoinsOffline(request);
+        } catch (InsufficientMoneyException e) {
+            throw new IllegalArgumentException("Недостаточно средств на балансе кошелька");
+        } catch (Wallet.DustySendRequested e) {
+            throw new IllegalArgumentException("Сумма перевода слишком мала (ниже dust-порога для P2WPKH-адресов)");
+        } catch (Wallet.CouldNotAdjustDownwards e) {
+            throw new IllegalArgumentException("Не удалось уменьшить сумму перевода: " + e.getMessage());
+        } catch (Wallet.ExceededMaxTransactionSize e) {
+            throw new IllegalArgumentException("Транзакция превышает максимально допустимый размер: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Десериализует транзакцию из hex-строки.
+     *
+     * @param hexTx hex-представление транзакции
+     * @return объект транзакции
+     * @throws IllegalArgumentException если hex некорректен
+     */
+    private Transaction deserializeTransaction(String hexTx) {
         byte[] raw;
         try {
             raw = HexFormat.of().parseHex(hexTx);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Некорректный hex транзакции: " + e.getMessage());
         }
-        Transaction tx;
         try {
-            tx = Transaction.read(java.nio.ByteBuffer.wrap(raw));
+            return Transaction.read(java.nio.ByteBuffer.wrap(raw));
         } catch (Exception e) {
             throw new IllegalArgumentException("Не удалось десериализовать транзакцию: " + e.getMessage());
         }
+    }
+
+    /**
+     * Устанавливает подтверждение транзакции.
+     *
+     * @param tx   транзакция
+     * @param depth глубина подтверждений (0 — PENDING, 1+ — BUILDING)
+     */
+    private void setTransactionConfidence(Transaction tx, int depth) {
         TransactionConfidence conf = tx.getConfidence();
         if (depth > 0) {
             conf.setConfidenceType(TransactionConfidence.ConfidenceType.BUILDING);
@@ -408,10 +402,26 @@ public class BitcoinWalletService {
         } else {
             conf.setConfidenceType(TransactionConfidence.ConfidenceType.PENDING);
         }
-        wallet.addWalletTransaction(new WalletTransaction(
-                depth > 0 ? WalletTransaction.Pool.UNSPENT : WalletTransaction.Pool.PENDING, tx));
-        wallet.saveToFile(fileFor(id));
+    }
 
+    /**
+     * Проверяет, подтверждена ли транзакция (depth ≥ {@value #CONFIRMATION_THRESHOLD}).
+     *
+     * @param tx транзакция
+     * @return {@code true}, если подтверждена
+     */
+    private boolean isConfirmed(Transaction tx) {
+        return tx.getConfidence().getDepthInBlocks() >= CONFIRMATION_THRESHOLD;
+    }
+
+    /**
+     * Преобразует транзакцию bitcoinj в {@link TxInfo}.
+     *
+     * @param tx     транзакция
+     * @param wallet кошелёк (для вычисления значения)
+     * @return DTO с данными транзакции
+     */
+    private TxInfo toTxInfo(Transaction tx, Wallet wallet) {
         List<OutputInfo> outputs = new ArrayList<>();
         for (TransactionOutput out : tx.getOutputs()) {
             Address to = out.getScriptPubKey().getToAddress(network);
@@ -423,167 +433,6 @@ public class BitcoinWalletService {
                 tx.getValue(wallet).toSat(),
                 fee != null ? fee.toSat() : null,
                 outputs,
-                depth);
-    }
-
-    /**
-     * DTO с информацией о кошельке.
-     */
-    public static class WalletInfo {
-        private final String id;
-        private final String network;
-        private final String mnemonic;
-        private final long balanceSat;
-        private final String address;
-        private final List<String> addresses;
-        private final int transactionCount;
-
-        /**
-         * Создаёт DTO с данными кошелька.
-         *
-         * @param id               идентификатор кошелька
-         * @param network          имя сети (например, {@code mainnet} или {@code regtest})
-         * @param mnemonic         мнемоническая фраза BIP39
-         * @param balanceSat       доступный баланс в сатоши
-         * @param address          текущий receive-адрес
-         * @param addresses        список всех выданных адресов
-         * @param transactionCount количество транзакций кошелька
-         */
-        public WalletInfo(String id, String network, String mnemonic, long balanceSat,
-                          String address, List<String> addresses, int transactionCount) {
-            this.id = id;
-            this.network = network;
-            this.mnemonic = mnemonic;
-            this.balanceSat = balanceSat;
-            this.address = address;
-            this.addresses = addresses;
-            this.transactionCount = transactionCount;
-        }
-
-        /**
-         * @return идентификатор кошелька
-         */
-        public String getId() { return id; }
-
-        /**
-         * @return имя сети (например, {@code mainnet} или {@code regtest})
-         */
-        public String getNetwork() { return network; }
-
-        /**
-         * @return мнемоническая фраза BIP39
-         */
-        public String getMnemonic() { return mnemonic; }
-
-        /**
-         * @return доступный баланс в сатоши
-         */
-        public long getBalanceSat() { return balanceSat; }
-
-        /**
-         * @return текущий receive-адрес
-         */
-        public String getAddress() { return address; }
-
-        /**
-         * @return список всех выданных адресов
-         */
-        public List<String> getAddresses() { return addresses; }
-
-        /**
-         * @return количество транзакций кошелька
-         */
-        public int getTransactionCount() { return transactionCount; }
-    }
-
-    /**
-     * DTO с данными выхода транзакции.
-     */
-    public static class OutputInfo {
-        private final String address;
-        private final long valueSat;
-
-        /**
-         * Создаёт DTO с данными выхода.
-         *
-         * @param address  адрес получателя
-         * @param valueSat сумма в сатоши
-         */
-        public OutputInfo(String address, long valueSat) {
-            this.address = address;
-            this.valueSat = valueSat;
-        }
-
-        /**
-         * @return адрес получателя
-         */
-        public String getAddress() { return address; }
-
-        /**
-         * @return сумма в сатоши
-         */
-        public long getValueSat() { return valueSat; }
-    }
-
-    /**
-     * DTO с информацией о транзакции.
-     */
-    public static class TxInfo {
-        private final String txId;
-        private final long valueSat;
-        private final Long feeSat;
-        private final List<OutputInfo> outputs;
-        private final int depth;
-
-        public TxInfo(String txId, long valueSat, Long feeSat, List<OutputInfo> outputs, int depth) {
-            this.txId = txId;
-            this.valueSat = valueSat;
-            this.feeSat = feeSat;
-            this.outputs = outputs;
-            this.depth = depth;
-        }
-
-        public String getTxId() { return txId; }
-        public long getValueSat() { return valueSat; }
-        public Long getFeeSat() { return feeSat; }
-        public List<OutputInfo> getOutputs() { return outputs; }
-        public int getDepth() { return depth; }
-    }
-
-    /**
-     * DTO с результатом отправки средств.
-     */
-    public static class SendResult {
-        private final String txId;
-        private final String hex;
-        private final Long feeSat;
-
-        /**
-         * Создаёт DTO с результатом отправки.
-         *
-         * @param txId   идентификатор транзакции
-         * @param hex    hex-представление сериализованной транзакции
-         * @param feeSat комиссия в сатоши или {@code null}, если не определена
-         */
-        public SendResult(String txId, String hex, Long feeSat) {
-            this.txId = txId;
-            this.hex = hex;
-            this.feeSat = feeSat;
-        }
-
-        /**
-         * @return идентификатор транзакции
-         */
-        public String getTxId() { return txId; }
-
-        /**
-         * @return hex-представление сериализованной транзакции
-         */
-        public String getHex() { return hex; }
-
-        /**
-         * @return комиссия в сатоши или {@code null}, если не определена
-         */
-        public Long getFeeSat() { return feeSat; }
+                tx.getConfidence().getDepthInBlocks());
     }
 }
