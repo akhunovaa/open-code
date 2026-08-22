@@ -78,6 +78,36 @@
         }
         #steeve-info-dialog .steeve-close:hover { background: rgba(21,101,192,0.8); color: #fff; }
 
+        #steeve-product-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            z-index: 45; display: none;
+            background: rgba(10,15,30,0.97); border: 1px solid rgba(245,181,59,0.5);
+            border-radius: 12px; padding: 24px; max-width: 480px; width: 90%;
+            text-align: center; pointer-events: auto;
+            box-shadow: 0 8px 40px rgba(0,0,0,.6);
+            opacity: 1; transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        #steeve-product-dialog.fade-out { opacity: 0; transform: translate(-50%,-40%); pointer-events: none; }
+        #steeve-product-dialog .product-dialog-x {
+            position: absolute; top: 10px; right: 14px;
+            background: none; border: none; color: #5b9bf5; font-size: 22px;
+            line-height: 1; cursor: pointer; pointer-events: auto;
+            padding: 4px 8px; border-radius: 6px; transition: all 0.15s;
+        }
+        #steeve-product-dialog .product-dialog-x:hover { color: #fff; background: rgba(21,101,192,0.7); }
+        #steeve-product-dialog h2 { color: #f5b53b; font-size: 18px; margin-bottom: 12px; }
+        #steeve-product-dialog .product-cover { width: 100%; max-width: 300px; border-radius: 8px; margin: 0 auto 12px; display: block; }
+        #steeve-product-dialog .product-desc { color: #ccc; font-size: 13px; line-height: 1.5; margin-bottom: 12px; text-align: left; }
+        #steeve-product-dialog .product-price { color: #f5b53b; font-size: 20px; font-weight: bold; margin: 12px 0; }
+        #steeve-product-dialog .product-key { background: rgba(15,52,96,0.3); border: 1px solid rgba(245,181,59,0.3); border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 11px; color: #8ef; word-break: break-all; text-align: left; max-height: 200px; overflow-y: auto; }
+        #steeve-product-dialog .product-btn {
+            background: rgba(245,181,59,0.15); border: 1px solid rgba(245,181,59,0.6);
+            color: #f5b53b; padding: 10px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s; width: 100%; margin-bottom: 8px;
+        }
+        #steeve-product-dialog .product-btn:hover { background: rgba(245,181,59,0.35); color: #fff; }
+        #steeve-product-dialog .product-btn:disabled { opacity: 0.6; cursor: wait; }
+
         #steeve-dialog .btc-price-box {
             background: rgba(245,181,59,0.08); border: 1px solid rgba(245,181,59,0.3);
             border-radius: 8px; padding: 12px; margin-bottom: 12px; text-align: left;
@@ -140,6 +170,19 @@
         <h2>Кошелёк — Алексей Дементьев</h2>
         <div class="steeve-info-content" id="steeve-info-content"></div>
         <button class="steeve-close" onclick="closeSteeveInfoDialog()">Закрыть</button>
+    </div>
+
+    <div id="steeve-product-dialog">
+        <button class="product-dialog-x" onclick="closeProductDialog()" aria-label="Закрыть">✖</button>
+        <h2 id="product-title">Товар</h2>
+        <img class="product-cover" id="product-cover" src="" alt="">
+        <div class="product-desc" id="product-desc"></div>
+        <div class="product-price" id="product-price"></div>
+        <div id="product-action-area">
+            <button class="product-btn" id="product-buy-btn" onclick="buyProduct()">Купить за BTC</button>
+        </div>
+        <div class="product-key" id="product-key-area" style="display:none;"></div>
+        <button class="steeve-close" onclick="closeProductDialog()">Закрыть</button>
     </div>
 </th:block>
 
@@ -509,6 +552,125 @@
                     });
             };
 
+            // ---- Digital product: Agile model on shelf ----
+            window.showProductDialog = function () {
+                var dlg = document.getElementById('steeve-product-dialog');
+                dlg.classList.remove('fade-out');
+                dlg.style.display = 'block';
+                loadProductInfo();
+            };
+
+            window.closeProductDialog = function () {
+                var dlg = document.getElementById('steeve-product-dialog');
+                dlg.classList.add('fade-out');
+                setTimeout(function () { dlg.style.display = 'none'; dlg.classList.remove('fade-out'); }, 500);
+            };
+
+            function loadProductInfo() {
+                fetch('/api/products/agile-model')
+                    .then(function (r) { return r.json(); })
+                    .then(function (info) {
+                        document.getElementById('product-title').textContent = info.name;
+                        document.getElementById('product-cover').src = info.coverUrl;
+                        document.getElementById('product-desc').textContent = info.description;
+                        var priceRub = info.priceRub;
+                        document.getElementById('product-price').textContent = priceRub.toLocaleString('ru-RU') + ' ₽';
+                        var buyBtn = document.getElementById('product-buy-btn');
+                        buyBtn.disabled = false;
+                        buyBtn.textContent = 'Купить за BTC';
+                        buyBtn.style.display = 'block';
+                        document.getElementById('product-key-area').style.display = 'none';
+                        document.getElementById('product-key-area').innerHTML = '';
+                        buyBtn._priceRub = priceRub;
+                    })
+                    .catch(function (err) {
+                        document.getElementById('product-desc').textContent = 'Ошибка загрузки: ' + err.message;
+                    });
+            }
+
+            window.buyProduct = function () {
+                var btn = document.getElementById('product-buy-btn');
+                var priceRub = btn._priceRub || 3900;
+                var userId = localStorage.getItem('alexey-btc-user-id');
+                if (!userId) {
+                    alert('Сначала заведите кошелёк у Алексея Дементьева!');
+                    return;
+                }
+                btn.disabled = true;
+                btn.textContent = '⏳ Проверяю баланс...';
+
+                var orderId = 'agile-' + userId + '-' + Date.now();
+                var sat = 0;
+                var rubRate = 0;
+
+                fetch('/api/btc/wallet/' + encodeURIComponent(userId) + '/confirmed-balance')
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        sat = Number(data.balanceSat);
+                        return fetch('/api/btc-price/cached');
+                    })
+                    .then(function (r) {
+                        if (r.status === 404) throw new Error('Курс BTC не загружен');
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        return r.json();
+                    })
+                    .then(function (price) {
+                        rubRate = parseFloat(price.priceRub);
+                        if (!isFinite(rubRate) || rubRate <= 0) throw new Error('Курс BTC недоступен');
+                        var balanceRub = sat / 100000000 * rubRate;
+                        if (priceRub > balanceRub) {
+                            throw new Error('Баланс ' + balanceRub.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ₽ < ' + priceRub + ' ₽');
+                        }
+                        return fetch('/api/btc/owner-address').then(function (r) { return r.json(); });
+                    })
+                    .then(function (owner) {
+                        var ownerAddr = owner.ownerAddress;
+                        if (!ownerAddr) throw new Error('Адрес владельца не задан');
+                        var satoshi = Math.floor(priceRub / rubRate * 100000000);
+                        if (satoshi < 546) satoshi = 546;
+                        var estFee = 1410;
+                        if (satoshi + estFee > sat) satoshi = Math.max(546, sat - estFee);
+                        btn.textContent = '⏳ Отправляю BTC...';
+                        return fetch('/api/btc/wallet/' + encodeURIComponent(userId) + '/send', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ to: ownerAddr, amountSat: satoshi })
+                        }).then(function (r) {
+                            if (r.ok) return r.json();
+                            return r.json().then(function (e) { throw new Error(e.error || 'HTTP ' + r.status); });
+                        });
+                    })
+                    .then(function () {
+                        btn.textContent = '⏳ Создаю заказ...';
+                        return fetch('/api/products/agile-model/order', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ orderId: orderId })
+                        }).then(function (r) { return r.json(); });
+                    })
+                    .then(function (order) {
+                        btn.textContent = '⏳ Выдаю ключ...';
+                        return fetch('/api/products/agile-model/fulfill', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ orderId: orderId })
+                        }).then(function (r) { return r.json(); });
+                    })
+                    .then(function (fulfill) {
+                        btn.style.display = 'none';
+                        var keyArea = document.getElementById('product-key-area');
+                        keyArea.style.display = 'block';
+                        keyArea.innerHTML = '<div style="color:#f5b53b;font-size:13px;margin-bottom:8px;">✅ Оплата прошла! Ключ расшифровки:</div>'
+                            + '<div style="word-break:break-all;">' + fulfill.privateKey + '</div>'
+                            + '<div style="color:#aaa;font-size:11px;margin-top:8px;">Сохраните этот ключ. Он позволяет расшифровать ссылку на документ.</div>';
+                    })
+                    .catch(function (err) {
+                        btn.disabled = false;
+                        btn.textContent = 'Купить за BTC';
+                        alert('Ошибка покупки: ' + err.message);
+                    });
+            };
+
             window.Room3DComponents.push({
                 id: 'alexey',
                 load: function (ctx) {
@@ -664,6 +826,39 @@
                             steeveMumbleTimer = setTimeout(showNextSteeveMumble, 4000);
 
                             ctx.registerHit('isSteeve', showSteeveDialog);
+
+                            // ---- Load Agile book model on shelf ----
+                            var bookMtlLoader = new THREE.MTLLoader();
+                            bookMtlLoader.setPath('/agile-book/');
+                            bookMtlLoader.load('agile-book.mtl', function (bookMats) {
+                                bookMats.preload();
+                                var bookObjLoader = new THREE.OBJLoader();
+                                bookObjLoader.setMaterials(bookMats);
+                                bookObjLoader.setPath('/agile-book/');
+                                bookObjLoader.load('agile-book.obj', function (book) {
+                                    var box = new THREE.Box3().setFromObject(book);
+                                    var size = box.getSize(new THREE.Vector3());
+                                    var scale = 0.4 / Math.max(size.x, size.y, size.z);
+                                    book.scale.setScalar(scale);
+                                    var scaledBox = new THREE.Box3().setFromObject(book);
+                                    var center = scaledBox.getCenter(new THREE.Vector3());
+                                    book.position.x -= center.x;
+                                    book.position.z -= center.z;
+                                    book.position.y -= scaledBox.min.y;
+                                    book.position.x += -6.01;
+                                    book.position.y += 0.85;
+                                    book.position.z += -1.5;
+                                    book.rotation.y = -0.3;
+                                    book.traverse(function (child) {
+                                        if (child.isMesh) {
+                                            child.userData.isAgileBook = true;
+                                            ctx.interactives.push(child);
+                                        }
+                                    });
+                                    ctx.scene.add(book);
+                                    ctx.registerHit('isAgileBook', showProductDialog);
+                                });
+                            });
 
                             scheduleNextSteeveWalk();
                         }, undefined, function (err) {

@@ -1,0 +1,24 @@
+# MTL file for Agile book model
+newmtl StandMat
+Ka 0.2 0.15 0.1
+Kd 0.4 0.3 0.2
+Ks 0.1 0.1 0.1
+illum 1
+
+newmtl BookCoverMat
+Ka 0.9 0.85 0.2
+Kd 0.91 0.77 0.06
+Ks 0.3 0.3 0.3
+illum 2
+
+newmtl BookSpineMat
+Ka 0.6 0.5 0.03
+Kd 0.7 0.6 0.04
+Ks 0.2 0.2 0.2
+illum 1
+
+newmtl BookPagesMat
+Ka 0.9 0.9 0.85
+Kd 0.95 0.95 0.9
+Ks 0.0 0.0 0.0
+illum 1
