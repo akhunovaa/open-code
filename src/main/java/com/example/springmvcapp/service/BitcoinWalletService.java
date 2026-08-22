@@ -127,8 +127,17 @@ public class BitcoinWalletService {
             return cached;
         }
         File file = fileFor(id);
-        Wallet wallet = file.exists() ? Wallet.loadFromFile(file)
-                : Wallet.createDeterministic(network, SCRIPT_TYPE);
+        Wallet wallet;
+        if (file.exists()) {
+            try {
+                wallet = Wallet.loadFromFile(file);
+            } catch (UnreadableWalletException e) {
+                file.delete();
+                wallet = Wallet.createDeterministic(network, SCRIPT_TYPE);
+            }
+        } else {
+            wallet = Wallet.createDeterministic(network, SCRIPT_TYPE);
+        }
         wallet.autosaveToFile(file, java.time.Duration.ofMillis(500), null);
         p2pManager.addWallet(wallet);
         cache.put(id, wallet);
