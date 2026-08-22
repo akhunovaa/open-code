@@ -107,6 +107,12 @@
         }
         #steeve-product-dialog .product-btn:hover { background: rgba(245,181,59,0.35); color: #fff; }
         #steeve-product-dialog .product-btn:disabled { opacity: 0.6; cursor: wait; }
+        #steeve-product-dialog .steeve-close {
+            background: rgba(21,101,192,0.5); border: 1px solid rgba(91,155,245,0.6);
+            color: #5b9bf5; padding: 8px 24px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; pointer-events: auto; transition: all 0.15s;
+        }
+        #steeve-product-dialog .steeve-close:hover { background: rgba(21,101,192,0.8); color: #fff; }
 
         #steeve-dialog .btc-price-box {
             background: rgba(245,181,59,0.08); border: 1px solid rgba(245,181,59,0.3);
@@ -195,6 +201,8 @@
 
             var steeveObject = null;
             var steeveLabel = null;
+            var steeveBookArrow = null;
+            var steeveBookArrowPhase = 0;
             var steeveMumbleSpriteRef = null;
             var steeveMumbleMat = null;
             var steeveMumbleOpacity = 0;
@@ -827,7 +835,7 @@
 
                             ctx.registerHit('isSteeve', showSteeveDialog);
 
-                            // ---- Load Agile book model on shelf ----
+                            // ---- Load Agile book on pedestal by the window ----
                             var bookMtlLoader = new THREE.MTLLoader();
                             bookMtlLoader.setPath('/agile-book/');
                             bookMtlLoader.load('agile-book.mtl', function (bookMats) {
@@ -838,17 +846,21 @@
                                 bookObjLoader.load('agile-book.obj', function (book) {
                                     var box = new THREE.Box3().setFromObject(book);
                                     var size = box.getSize(new THREE.Vector3());
-                                    var scale = 0.4 / Math.max(size.x, size.y, size.z);
+                                    var scale = 0.6 / Math.max(size.x, size.y, size.z);
                                     book.scale.setScalar(scale);
                                     var scaledBox = new THREE.Box3().setFromObject(book);
                                     var center = scaledBox.getCenter(new THREE.Vector3());
                                     book.position.x -= center.x;
                                     book.position.z -= center.z;
                                     book.position.y -= scaledBox.min.y;
-                                    book.position.x += -6.01;
-                                    book.position.y += 0.85;
-                                    book.position.z += -1.5;
-                                    book.rotation.y = -0.3;
+                                    // Pedestal by the window (far wall z≈-4.8, near window x≈-5.5)
+                                    book.position.x += -5.5;
+                                    book.position.y += 1.15;
+                                    book.position.z += -4.2;
+                                    // Lay flat on pedestal, cover facing the buyer (front)
+                                    book.rotation.x = 0;
+                                    book.rotation.y = 0.3;
+                                    book.rotation.z = 0;
                                     book.traverse(function (child) {
                                         if (child.isMesh) {
                                             child.userData.isAgileBook = true;
@@ -857,6 +869,51 @@
                                     });
                                     ctx.scene.add(book);
                                     ctx.registerHit('isAgileBook', showProductDialog);
+
+                                    // ---- Pedestal under the book ----
+                                    var pedGeom = new THREE.BoxGeometry(0.45, 1.0, 0.35);
+                                    var pedMat = new THREE.MeshLambertMaterial({ color: 0x4a4a5a });
+                                    var pedestal = new THREE.Mesh(pedGeom, pedMat);
+                                    pedestal.position.set(-5.5, 0.5, -4.2);
+                                    ctx.scene.add(pedestal);
+
+                                    // ---- Red arrow pointing at the book ----
+                                    var arrowCanvas = document.createElement('canvas');
+                                    arrowCanvas.width = 512;
+                                    arrowCanvas.height = 256;
+                                    var actx = arrowCanvas.getContext('2d');
+                                    actx.clearRect(0, 0, 512, 256);
+                                    // Arrow pointing down
+                                    actx.fillStyle = '#ff1744';
+                                    actx.shadowColor = '#ff1744';
+                                    actx.shadowBlur = 20;
+                                    actx.beginPath();
+                                    actx.moveTo(256, 200);
+                                    actx.lineTo(200, 100);
+                                    actx.lineTo(236, 100);
+                                    actx.lineTo(236, 30);
+                                    actx.lineTo(276, 30);
+                                    actx.lineTo(276, 100);
+                                    actx.lineTo(312, 100);
+                                    actx.closePath();
+                                    actx.fill();
+                                    // Text
+                                    actx.shadowBlur = 10;
+                                    actx.font = 'bold 22px Arial';
+                                    actx.fillStyle = '#ffeb3b';
+                                    actx.textAlign = 'center';
+                                    actx.textBaseline = 'middle';
+                                    actx.fillText('Это лучшее', 256, 160);
+                                    actx.font = '18px Arial';
+                                    actx.fillText('и достойно вашего внимания!', 256, 188);
+                                    var arrowTex = new THREE.CanvasTexture(arrowCanvas);
+                                    var arrowMat = new THREE.SpriteMaterial({ map: arrowTex, transparent: true, opacity: 0.95 });
+                                    var arrowSprite = new THREE.Sprite(arrowMat);
+                                    arrowSprite.position.set(-5.5, 2.0, -4.2);
+                                    arrowSprite.scale.set(1.8, 0.9, 1);
+                                    ctx.scene.add(arrowSprite);
+                                    // Pulsing animation
+                                    steeveBookArrow = arrowMat;
                                 });
                             });
 
@@ -874,6 +931,12 @@
                         steeveMumbleOpacity += (steeveMumbleTargetOpacity - steeveMumbleOpacity) * 0.08;
                         if (Math.abs(steeveMumbleOpacity - steeveMumbleTargetOpacity) < 0.01) steeveMumbleOpacity = steeveMumbleTargetOpacity;
                         steeveMumbleMat.opacity = steeveMumbleOpacity;
+                    }
+
+                    // Pulse the book arrow
+                    if (steeveBookArrow) {
+                        steeveBookArrowPhase += 0.05;
+                        steeveBookArrow.opacity = 0.6 + Math.sin(steeveBookArrowPhase) * 0.35;
                     }
 
                     // Steve (Alexey) walking animation

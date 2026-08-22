@@ -72,6 +72,7 @@ public class BtcP2pManager {
             peerGroup.addPeerDiscovery(new DnsDiscovery(network));
             peerGroup.startAsync();
             peerGroup.start();
+            peerGroup.startBlockChainDownload(null);
             log.info("P2P запущен для mainnet: SPV-синхронизация началась");
         } catch (Exception e) {
             log.warn("P2P не запустился: {}", e.getMessage(), e);
