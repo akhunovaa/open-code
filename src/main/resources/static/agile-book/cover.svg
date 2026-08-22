@@ -103,15 +103,15 @@
   <text x="250" y="245" text-anchor="middle" font-family="Arial" font-size="18" font-weight="bold" fill="url(#goldText)">Термодинамика Agile</text>
   <text x="250" y="265" text-anchor="middle" font-family="Arial" font-size="13" fill="#74b9ff">Биофизическая модель</text>
   <text x="250" y="282" text-anchor="middle" font-family="Arial" font-size="13" fill="#74b9ff">спринт-планирования</text>
+  <text x="250" y="299" text-anchor="middle" font-family="Arial" font-size="10" fill="#7ee07e">Математически доказанная модель</text>
 
-  <line x1="120" y1="295" x2="380" y2="295" stroke="#f5b53b" stroke-width="0.5" opacity="0.5"/>
+  <line x1="120" y1="312" x2="380" y2="312" stroke="#f5b53b" stroke-width="0.5" opacity="0.5"/>
 
-  <text x="250" y="312" text-anchor="middle" font-family="Courier New" font-size="14" fill="#f5b53b" font-weight="bold">ln(R) × I ≈ π</text>
+  <text x="250" y="329" text-anchor="middle" font-family="Courier New" font-size="14" fill="#f5b53b" font-weight="bold">ln(R) × I ≈ π</text>
 
-  <rect x="80" y="325" width="340" height="55" rx="8" fill="url(#titleBg)" stroke="#f5b53b" stroke-width="1"/>
-  <text x="250" y="343" text-anchor="middle" font-family="Arial" font-size="9" fill="#e94560" font-weight="bold">ФОРМУЛА ВЕЛИКОГО УЧЁНОГО</text>
-  <text x="250" y="356" text-anchor="middle" font-family="Arial" font-size="8" fill="#f5b53b" font-weight="bold">Циолковского Константина Эдуардовича</text>
-  <text x="250" y="370" text-anchor="middle" font-family="Arial" font-size="9" fill="#ccc">Математически доказанная модель</text>
+  <rect x="80" y="345" width="340" height="45" rx="8" fill="url(#titleBg)" stroke="#f5b53b" stroke-width="1"/>
+  <text x="250" y="361" text-anchor="middle" font-family="Arial" font-size="9" fill="#e94560" font-weight="bold">ФОРМУЛА ВЕЛИКОГО УЧЁНОГО</text>
+  <text x="250" y="374" text-anchor="middle" font-family="Arial" font-size="8" fill="#f5b53b" font-weight="bold">Циолковского Константина Эдуардовича</text>
 
-  <text x="250" y="392" text-anchor="middle" font-family="Arial" font-size="8" fill="#555">© Ахунов А.А. · 2026</text>
+  <text x="250" y="395" text-anchor="middle" font-family="Arial" font-size="8" fill="#555">© Ахунов А.А. · 2026</text>
 </svg>
