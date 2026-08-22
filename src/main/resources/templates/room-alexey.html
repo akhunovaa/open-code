@@ -96,7 +96,16 @@
         }
         #steeve-product-dialog .product-dialog-x:hover { color: #fff; background: rgba(21,101,192,0.7); }
         #steeve-product-dialog h2 { color: #f5b53b; font-size: 18px; margin-bottom: 12px; }
-        #steeve-product-dialog .product-cover { width: 100%; max-width: 300px; border-radius: 8px; margin: 0 auto 12px; display: block; }
+        #steeve-product-dialog .product-cover-wrap { position: relative; width: 100%; max-width: 440px; margin: 0 auto 12px; }
+        #steeve-product-dialog .product-cover { width: 100%; border-radius: 8px; display: block; cursor: crosshair; }
+        #steeve-product-dialog .product-lens {
+            position: absolute; border: 3px solid #f5b53b; border-radius: 50%;
+            width: 180px; height: 180px; overflow: hidden; pointer-events: none;
+            display: none; box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+        #steeve-product-dialog .product-lens img {
+            position: absolute; max-width: none; border-radius: 0;
+        }
         #steeve-product-dialog .product-desc { color: #ccc; font-size: 13px; line-height: 1.5; margin-bottom: 12px; text-align: left; }
         #steeve-product-dialog .product-price { color: #f5b53b; font-size: 20px; font-weight: bold; margin: 12px 0; }
         #steeve-product-dialog .product-key { background: rgba(15,52,96,0.3); border: 1px solid rgba(245,181,59,0.3); border-radius: 8px; padding: 12px; margin: 12px 0; font-size: 11px; color: #8ef; word-break: break-all; text-align: left; max-height: 200px; overflow-y: auto; }
@@ -181,7 +190,10 @@
     <div id="steeve-product-dialog">
         <button class="product-dialog-x" onclick="closeProductDialog()" aria-label="Закрыть">✖</button>
         <h2 id="product-title">Товар</h2>
-        <img class="product-cover" id="product-cover" src="" alt="">
+        <div class="product-cover-wrap" id="product-cover-wrap">
+            <img class="product-cover" id="product-cover" src="" alt="">
+            <div class="product-lens" id="product-lens"><img id="product-lens-img" src="" alt=""></div>
+        </div>
         <div class="product-desc" id="product-desc"></div>
         <div class="product-price" id="product-price"></div>
         <div id="product-action-area">
@@ -579,7 +591,9 @@
                     .then(function (r) { return r.json(); })
                     .then(function (info) {
                         document.getElementById('product-title').textContent = info.name;
-                        document.getElementById('product-cover').src = info.coverUrl;
+                        var coverImg = document.getElementById('product-cover');
+                        coverImg.src = info.coverUrl;
+                        document.getElementById('product-lens-img').src = info.coverUrl;
                         document.getElementById('product-desc').textContent = info.description;
                         var priceRub = info.priceRub;
                         document.getElementById('product-price').textContent = priceRub.toLocaleString('ru-RU') + ' ₽';
@@ -590,10 +604,48 @@
                         document.getElementById('product-key-area').style.display = 'none';
                         document.getElementById('product-key-area').innerHTML = '';
                         buyBtn._priceRub = priceRub;
+                        initProductLens();
                     })
                     .catch(function (err) {
                         document.getElementById('product-desc').textContent = 'Ошибка загрузки: ' + err.message;
                     });
+            }
+
+            function initProductLens() {
+                var wrap = document.getElementById('product-cover-wrap');
+                var cover = document.getElementById('product-cover');
+                var lens = document.getElementById('product-lens');
+                var lensImg = document.getElementById('product-lens-img');
+                var zoom = 2.5;
+                var lensSize = 180;
+
+                cover.onmousemove = function (e) {
+                    var rect = cover.getBoundingClientRect();
+                    var x = e.clientX - rect.left;
+                    var y = e.clientY - rect.top;
+                    if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+                        lens.style.display = 'none';
+                        return;
+                    }
+                    lens.style.display = 'block';
+                    var lx = x - lensSize / 2;
+                    var ly = y - lensSize / 2;
+                    if (lx < 0) lx = 0;
+                    if (ly < 0) ly = 0;
+                    if (lx + lensSize > rect.width) lx = rect.width - lensSize;
+                    if (ly + lensSize > rect.height) ly = rect.height - lensSize;
+                    lens.style.left = lx + 'px';
+                    lens.style.top = ly + 'px';
+                    var scale = (rect.width * zoom) / rect.width;
+                    lensImg.style.width = (rect.width * zoom) + 'px';
+                    lensImg.style.height = (rect.height * zoom) + 'px';
+                    lensImg.style.left = -(x * zoom - lensSize / 2) + 'px';
+                    lensImg.style.top = -(y * zoom - lensSize / 2) + 'px';
+                };
+
+                cover.onmouseleave = function () {
+                    lens.style.display = 'none';
+                };
             }
 
             window.buyProduct = function () {
@@ -668,9 +720,22 @@
                         btn.style.display = 'none';
                         var keyArea = document.getElementById('product-key-area');
                         keyArea.style.display = 'block';
-                        keyArea.innerHTML = '<div style="color:#f5b53b;font-size:13px;margin-bottom:8px;">✅ Оплата прошла! Ключ расшифровки:</div>'
-                            + '<div style="word-break:break-all;">' + fulfill.privateKey + '</div>'
-                            + '<div style="color:#aaa;font-size:11px;margin-top:8px;">Сохраните этот ключ. Он позволяет расшифровать ссылку на документ.</div>';
+                        keyArea.innerHTML =
+                            '<div style="text-align:center;margin-bottom:12px;">'
+                            + '<div style="color:#7ee07e;font-size:16px;font-weight:bold;margin-bottom:10px;">✅ Оплата прошла успешно!</div>'
+                            + '</div>'
+                            + '<div style="background:rgba(0,184,148,0.1);border:2px solid rgba(0,184,148,0.5);border-radius:10px;padding:16px;text-align:center;margin-bottom:12px;">'
+                            + '<div style="color:#7ee07e;font-size:14px;font-weight:bold;margin-bottom:8px;">📦 Ваш товар ЗДЕСЬ — КЛИКНИ по ссылке!</div>'
+                            + '<a href="' + fulfill.downloadUrl + '" download="' + fulfill.fileName + '" '
+                            + 'style="display:inline-block;background:rgba(0,184,148,0.2);border:1px solid rgba(0,184,148,0.7);'
+                            + 'color:#7ee07e;padding:12px 32px;border-radius:8px;font-size:15px;font-weight:bold;'
+                            + 'text-decoration:none;cursor:pointer;transition:all 0.15s;" '
+                            + 'onmouseover="this.style.background=\'rgba(0,184,148,0.4)\'" '
+                            + 'onmouseout="this.style.background=\'rgba(0,184,148,0.2)\'">'
+                            + '⬇ Скачать «Термодинамика Agile»</a>'
+                            + '<div style="color:#aaa;font-size:11px;margin-top:8px;">Файл: ' + fulfill.fileName + '</div>'
+                            + '</div>'
+                            + '<div style="color:#555;font-size:10px;text-align:center;">Заказ: ' + orderId + '</div>';
                     })
                     .catch(function (err) {
                         btn.disabled = false;

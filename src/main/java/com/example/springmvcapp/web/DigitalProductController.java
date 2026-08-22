@@ -56,14 +56,29 @@ public class DigitalProductController {
     }
 
     /**
-     * Выдаёт приватный RSA-ключ после подтверждения оплаты.
+     * Выдаёт расшифрованную ссылку для скачивания после подтверждения оплаты.
      *
      * @param body тело запроса с полем {@code orderId}
-     * @return приватный ключ для расшифровки ссылки
+     * @return расшифрованная ссылка и имя файла для скачивания
      */
     @PostMapping("/api/products/agile-model/fulfill")
     public Map<String, String> fulfillOrder(@RequestBody OrderRequest body) {
         return productService.fulfillOrder(body.getOrderId());
+    }
+
+    /**
+     * Отдаёт файл продукта для скачивания.
+     *
+     * @return содержимое файла как HTML-attachment
+     * @throws IOException если файл не найден
+     */
+    @GetMapping("/api/products/agile-model/download/{orderId}")
+    public ResponseEntity<byte[]> downloadProduct(@PathVariable String orderId) throws IOException {
+        byte[] content = productService.readProductContent().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"agile-model.html\"")
+                .header("Content-Type", "text/html; charset=UTF-8")
+                .body(content);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

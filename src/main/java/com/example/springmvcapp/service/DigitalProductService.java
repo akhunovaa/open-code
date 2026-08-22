@@ -9,6 +9,7 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -22,8 +23,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>Использует RSA-шифрование: документ хранится в открытом виде в
  * {@code storageDir}, но ссылка на него выдаётся в зашифрованном виде.
- * После оплаты покупатель получает зашифрованную ссылку и RSA-ключ
- * для её расшифровки.</p>
+ * После оплаты покупатель получает расшифрованную ссылку для скачивания.</p>
  */
 @Service
 public class DigitalProductService {
@@ -32,7 +32,7 @@ public class DigitalProductService {
     private static final int RSA_KEY_SIZE = 2048;
 
     private final Path storageDir;
-    private final Map<String, KeyPair> keyPairs = new ConcurrentHashMap<>();
+    private final Map<String, String[]> orderData = new ConcurrentHashMap<>();
 
     public DigitalProductService(@Value("${btc.storage-dir:/data}") String storageDir) {
         this.storageDir = Paths.get(storageDir);
@@ -66,9 +66,13 @@ public class DigitalProductService {
      */
     public Map<String, String> createOrder(String orderId) {
         KeyPair keys = generateKeyPair();
-        keyPairs.put(orderId, keys);
         String filePath = storageDir.resolve("agile-model.html").toString();
         String encrypted = encrypt(filePath, keys.getPublic());
+        orderData.put(orderId, new String[]{
+                encrypted,
+                encodeBase64(keys.getPublic().getEncoded()),
+                encodeBase64(keys.getPrivate().getEncoded())
+        });
         return Map.of(
                 "orderId", orderId,
                 "encryptedLink", encrypted,
@@ -77,27 +81,35 @@ public class DigitalProductService {
     }
 
     /**
-     * Выдаёт приватный RSA-ключ после подтверждения оплаты.
+     * Выдаёт расшифрованную ссылку для скачивания после подтверждения оплаты.
      *
-     * <p>Ключ позволяет расшифровать ссылку и получить путь к файлу.
-     * После выдачи ключ удаляется из памяти.</p>
+     * <p>Расшифровывает зашифрованную ссылку приватным RSA-ключом и
+     * возвращает прямую ссылку для скачивания товара. После выдачи
+     * данные заказа удаляются из памяти.</p>
      *
      * @param orderId идентификатор заказа
-     * @return карта с приватным ключом и ссылкой на зашифрованные данные
+     * @return карта с расшифрованной ссылкой для скачивания
      * @throws IllegalArgumentException если заказ не найден
      */
     public Map<String, String> fulfillOrder(String orderId) {
-        KeyPair keys = keyPairs.get(orderId);
-        if (keys == null) {
+        String[] data = orderData.get(orderId);
+        if (data == null) {
             throw new IllegalArgumentException("Заказ не найден: " + orderId);
         }
-        String privateKey = encodeBase64(keys.getPrivate().getEncoded());
-        keyPairs.remove(orderId);
-        return Map.of(
-                "orderId", orderId,
-                "privateKey", privateKey,
-                "hint", "Используйте приватный ключ для расшифровки зашифрованной ссылки"
-        );
+        String encryptedLink = data[0];
+        String privateKeyBase64 = data[2];
+        orderData.remove(orderId);
+
+        PrivateKey privateKey = decodePrivateKey(privateKeyBase64);
+        String decryptedPath = decrypt(encryptedLink, privateKey);
+        String fileName = Path.of(decryptedPath).getFileName().toString();
+
+        Map<String, String> result = new HashMap<>();
+        result.put("orderId", orderId);
+        result.put("downloadUrl", "/api/products/agile-model/download/" + orderId);
+        result.put("fileName", fileName);
+        result.put("status", "paid");
+        return result;
     }
 
     /**
@@ -128,6 +140,27 @@ public class DigitalProductService {
             return Base64.getEncoder().encodeToString(encrypted);
         } catch (Exception e) {
             throw new RuntimeException("Ошибка шифрования: " + e.getMessage(), e);
+        }
+    }
+
+    private String decrypt(String encryptedBase64, PrivateKey privateKey) {
+        try {
+            Cipher cipher = Cipher.getInstance(RSA_ALGORITHM);
+            cipher.init(Cipher.DECRYPT_MODE, privateKey);
+            byte[] decrypted = cipher.doFinal(Base64.getDecoder().decode(encryptedBase64));
+            return new String(decrypted, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка расшифровки: " + e.getMessage(), e);
+        }
+    }
+
+    private PrivateKey decodePrivateKey(String base64) {
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(base64);
+            java.security.spec.PKCS8EncodedKeySpec spec = new java.security.spec.PKCS8EncodedKeySpec(keyBytes);
+            return java.security.KeyFactory.getInstance(RSA_ALGORITHM).generatePrivate(spec);
+        } catch (Exception e) {
+            throw new RuntimeException("Ошибка декодирования приватного ключа: " + e.getMessage(), e);
         }
     }
 
