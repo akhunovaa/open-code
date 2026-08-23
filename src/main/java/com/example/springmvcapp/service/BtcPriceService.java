@@ -36,7 +36,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public class BtcPriceService {
 
     private static final String BINANCE_API = "https://api.binance.com/api/v3/ticker/price?symbol=";
+    private static final String COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,rub";
     private static final String PRICE_ERROR = "ошибка получения цены";
+    private static final double RUB_STALE_THRESHOLD = 0.15;
+
+    private volatile String lastRubPrice = "";
 
     private final Path storageDir;
     private final Path priceFile;
@@ -87,6 +91,18 @@ public class BtcPriceService {
     public synchronized CachedPrice refreshPrice() {
         String priceUsd = fetchPrice("BTCUSDT");
         String priceRub = fetchPrice("BTCRUB");
+
+        if (!lastRubPrice.isEmpty() && priceRub.equals(lastRubPrice)) {
+            String fallbackRub = fetchCoinGeckoPrice("rub");
+            if (fallbackRub != null) priceRub = fallbackRub;
+        }
+        lastRubPrice = priceRub;
+
+        String fallbackUsd = fetchCoinGeckoPrice("usd");
+        if (fallbackUsd != null && !priceUsd.matches("\\d+\\.\\d+")) {
+            priceUsd = fallbackUsd;
+        }
+
         String savedAt = Instant.now().toString();
         CachedPrice result = new CachedPrice(priceUsd, priceRub, savedAt);
         savePrice(result);
@@ -136,5 +152,34 @@ public class BtcPriceService {
             // fall through to error response
         }
         return PRICE_ERROR;
+    }
+
+    /**
+     * Запрашивает цену у CoinGecko API (резервный источник).
+     *
+     * @param currency валюта: {@code usd} или {@code rub}
+     * @return цена строкой или {@code null} при ошибке
+     */
+    private String fetchCoinGeckoPrice(String currency) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(COINGECKO_API))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Accept", "application/json")
+                    .GET()
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                JsonNode root = objectMapper.readTree(response.body());
+                JsonNode btc = root.path("bitcoin");
+                JsonNode priceNode = btc.path(currency);
+                if (priceNode.isNumber()) {
+                    return priceNode.asText();
+                }
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return null;
     }
 }
