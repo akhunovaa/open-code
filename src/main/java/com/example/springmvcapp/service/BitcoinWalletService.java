@@ -139,7 +139,8 @@ public class BitcoinWalletService {
         } else {
             wallet = Wallet.createDeterministic(network, SCRIPT_TYPE);
         }
-        wallet.autosaveToFile(file, java.time.Duration.ofMillis(500), null);
+        // wallet.autosaveToFile(file, java.time.Duration.ofMillis(500), null);
+        wallet.saveToFile(file);
         p2pManager.addWallet(wallet);
         cache.put(id, wallet);
         return wallet;
