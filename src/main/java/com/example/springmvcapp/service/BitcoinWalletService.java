@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -139,8 +140,8 @@ public class BitcoinWalletService {
         } else {
             wallet = Wallet.createDeterministic(network, SCRIPT_TYPE);
         }
-        // wallet.autosaveToFile(file, java.time.Duration.ofMillis(500), null);
-        wallet.saveToFile(file);
+        wallet.autosaveToFile(file, Duration.ofMillis(500), null);
+        // wallet.saveToFile(file);
         p2pManager.addWallet(wallet);
         cache.put(id, wallet);
         return wallet;
