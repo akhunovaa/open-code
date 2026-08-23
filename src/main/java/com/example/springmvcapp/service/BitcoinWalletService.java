@@ -27,6 +27,7 @@ import org.bitcoinj.wallet.UnreadableWalletException;
 import org.bitcoinj.wallet.Wallet;
 import org.bitcoinj.wallet.Wallet.BalanceType;
 import org.bitcoinj.wallet.WalletTransaction;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -138,10 +139,22 @@ public class BitcoinWalletService {
         } else {
             wallet = Wallet.createDeterministic(network, SCRIPT_TYPE);
         }
-        wallet.autosaveToFile(file, java.time.Duration.ofMillis(500), null);
+        wallet.autosaveToFile(file, java.time.Duration.ZERO, null);
         p2pManager.addWallet(wallet);
         cache.put(id, wallet);
         return wallet;
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        for (Wallet wallet : cache.values()) {
+            try {
+                wallet.shutdownAutosaveAndWait();
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        p2pManager.shutdown();
     }
 
     // ─── Создание и листинг ───────────────────────────────────────────
