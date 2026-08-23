@@ -208,7 +208,6 @@ public class BitcoinWalletService {
         return new WalletInfo(
                 id,
                 network.toString(),
-                wallet.getKeyChainSeed() != null ? wallet.getKeyChainSeed().getMnemonicString() : null,
                 wallet.getBalance(BalanceType.AVAILABLE).toSat(),
                 current,
                 addresses,
