@@ -21,38 +21,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Сервис для получения и кэширования курса биткоина.
+ * Сервис для получения курса биткоина.
  *
- * <p>Свежий курс запрашивается у Binance API (BTCUSDT, BTCRUB) и сохраняется
- * в файл {@code btc-price.json} в каталоге хранения с меткой времени.
- * Кэш можно прочитать без запроса к бирже через {@link #getCachedPrice()}.</p>
- *
- * <p>Все методы синхронизированы для защиты от гонок при параллельной записи
- * файла кэша.</p>
+ * <p>Курс запрашивается у CoinGecko API. Результат кэшируется в файл
+ * {@code btc-price.json} — если CoinGecko недоступен, возвращается
+ * последний сохранённый курс.</p>
  *
  * @see CachedPrice
  */
 @Service
 public class BtcPriceService {
 
-    private static final String BINANCE_API = "https://api.binance.com/api/v3/ticker/price?symbol=";
     private static final String COINGECKO_API = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,rub";
     private static final String PRICE_ERROR = "ошибка получения цены";
-    private static final double RUB_STALE_THRESHOLD = 0.15;
-
-    private volatile String lastRubPrice = "";
 
     private final Path storageDir;
     private final Path priceFile;
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /**
-     * Создаёт сервис курса биткоина.
-     *
-     * @param httpClient HTTP-клиент для запросов к Binance
-     * @param storageDir каталог хранения файла кэша (свойство {@code btc.storage-dir})
-     */
     public BtcPriceService(HttpClient httpClient,
                            @Value("${btc.storage-dir:/data}") String storageDir) {
         this.httpClient = httpClient;
@@ -61,7 +48,7 @@ public class BtcPriceService {
     }
 
     /**
-     * Возвращает сохранённый курс, если файл кэша существует.
+     * Возвращает последний сохранённый курс, если файл кэша существует.
      *
      * @return {@link Optional} с {@link CachedPrice} или пустой, если кэша нет
      */
@@ -84,35 +71,31 @@ public class BtcPriceService {
     }
 
     /**
-     * Запрашивает свежий курс у Binance, сохраняет в кэш и возвращает.
+     * Запрашивает свежий курс у CoinGecko. Если запрос не удался —
+     * возвращает последний кэшированный курс.
      *
-     * @return {@link CachedPrice} с актуальными ценами и меткой времени
+     * @return {@link CachedPrice} с актуальными или кэшированными ценами
      */
     public synchronized CachedPrice refreshPrice() {
-        String priceUsd = fetchPrice("BTCUSDT");
-        String priceRub = fetchPrice("BTCRUB");
+        String priceUsd = fetchCoinGeckoPrice("usd");
+        String priceRub = fetchCoinGeckoPrice("rub");
 
-        if (!lastRubPrice.isEmpty() && priceRub.equals(lastRubPrice)) {
-            String fallbackRub = fetchCoinGeckoPrice("rub");
-            if (fallbackRub != null) priceRub = fallbackRub;
-        }
-        lastRubPrice = priceRub;
-
-        String fallbackUsd = fetchCoinGeckoPrice("usd");
-        if (fallbackUsd != null && !priceUsd.matches("\\d+\\.\\d+")) {
-            priceUsd = fallbackUsd;
+        if (priceUsd != null && priceRub != null) {
+            CachedPrice result = new CachedPrice(priceUsd, priceRub, Instant.now().toString());
+            savePrice(result);
+            return result;
         }
 
-        String savedAt = Instant.now().toString();
-        CachedPrice result = new CachedPrice(priceUsd, priceRub, savedAt);
-        savePrice(result);
-        return result;
+        Optional<CachedPrice> cached = getCachedPrice();
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        return new CachedPrice(PRICE_ERROR, PRICE_ERROR, Instant.now().toString());
     }
 
     /**
      * Сохраняет курс в файл кэша.
-     *
-     * @param price данные курса для сохранения
      */
     private synchronized void savePrice(CachedPrice price) {
         try {
@@ -123,39 +106,12 @@ public class BtcPriceService {
             node.put("savedAt", price.savedAt());
             Files.writeString(priceFile, objectMapper.writeValueAsString(node));
         } catch (IOException e) {
-            // кэш не критичен — игнорируем ошибку записи
+            // кэш не критичен
         }
     }
 
     /**
-     * Запрашивает цену у Binance API по символу (BTCUSDT, BTCRUB).
-     *
-     * @param symbol торговый символ Binance
-     * @return цена строкой или сообщение об ошибке
-     */
-    private String fetchPrice(String symbol) {
-        try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(BINANCE_API + symbol))
-                    .timeout(Duration.ofSeconds(10))
-                    .GET()
-                    .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                JsonNode node = objectMapper.readTree(response.body());
-                JsonNode price = node.get("price");
-                if (price != null && price.isTextual()) {
-                    return price.asText();
-                }
-            }
-        } catch (Exception e) {
-            // fall through to error response
-        }
-        return PRICE_ERROR;
-    }
-
-    /**
-     * Запрашивает цену у CoinGecko API (резервный источник).
+     * Запрашивает цену у CoinGecko API.
      *
      * @param currency валюта: {@code usd} или {@code rub}
      * @return цена строкой или {@code null} при ошибке
@@ -166,6 +122,7 @@ public class BtcPriceService {
                     .uri(URI.create(COINGECKO_API))
                     .timeout(Duration.ofSeconds(10))
                     .header("Accept", "application/json")
+                    .header("User-Agent", "spring-mvc-app/1.0")
                     .GET()
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

@@ -12,14 +12,13 @@ import com.example.springmvcapp.service.BtcPriceService;
 import com.example.springmvcapp.service.dto.CachedPrice;
 
 /**
- * REST-контроллер для получения и кэширования курса биткоина.
+ * REST-контроллер для получения курса биткоина.
  *
  * <p>Предоставляет HTTP API для:</p>
  * <ul>
- *     <li>{@code GET /api/btc-price} — запрос свежего курса у Binance и сохранение
- *         в {@code btc-price.json} в каталоге хранения;</li>
- *     <li>{@code GET /api/btc-price/cached} — получение последнего сохранённого
- *         курса без обращения к бирже.</li>
+ *     <li>{@code GET /api/btc-price} — запрос свежего курса у CoinGecko;</li>
+ *     <li>{@code GET /api/btc-price/cached} — получение последнего курса
+ *         без нового запроса к API.</li>
  * </ul>
  *
  * @see BtcPriceService
@@ -34,10 +33,9 @@ public class CryptoPriceController {
     }
 
     /**
-     * Запрашивает свежий курс биткоина у Binance, сохраняет его в файл кэша
-     * и возвращает результат с меткой времени.
+     * Запрашивает свежий курс биткоина у CoinGecko и возвращает результат.
      *
-     * @return {@link CachedPrice} с ценами в USD/RUB и временем сохранения
+     * @return {@link CachedPrice} с ценами в USD/RUB и меткой времени
      */
     @GetMapping("/api/btc-price")
     public CachedPrice btcPrice() {
@@ -45,10 +43,10 @@ public class CryptoPriceController {
     }
 
     /**
-     * Возвращает последний сохранённый курс биткоина без запроса к бирже.
+     * Возвращает последний полученный курс без нового запроса к API.
      *
      * @return {@link CachedPrice} со статусом {@code 200}, либо {@code 404},
-     *         если кэш ещё не создан
+     *         если курс ещё не запрашивался
      */
     @GetMapping("/api/btc-price/cached")
     public ResponseEntity<CachedPrice> btcPriceCached() {

@@ -436,15 +436,9 @@
                     })
                     .then(function (data) {
                         sat = Number(data.balanceSat);
-                        return fetch('/api/btc-price/cached');
+                        return fetch('/api/btc-price');
                     })
                     .then(function (r) {
-                        if (r.status === 404) {
-                            return fetch('/api/btc-price').then(function (rr) {
-                                if (rr.ok) return rr.json();
-                                throw new Error('Курс BTC недоступен');
-                            });
-                        }
                         if (!r.ok) throw new Error('HTTP ' + r.status);
                         return r.json();
                     })
@@ -492,7 +486,10 @@
             window.refreshSteevePending = function () {
                 var content = document.getElementById('steeve-info-content');
                 if (content) content.innerHTML = '<i>Обновляю...</i>';
-                loadSteeveBalance();
+                fetch('/api/btc-price')
+                    .then(function (r) { return r.json(); })
+                    .then(function () { loadSteeveBalance(); })
+                    .catch(function () { loadSteeveBalance(); });
             };
 
             // ---- BTC price display with caching ----
@@ -667,7 +664,7 @@
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         sat = Number(data.balanceSat);
-                        return fetch('/api/btc-price/cached');
+                        return fetch('/api/btc-price');
                     })
                     .then(function (r) {
                         if (r.status === 404) throw new Error('Курс BTC не загружен');
