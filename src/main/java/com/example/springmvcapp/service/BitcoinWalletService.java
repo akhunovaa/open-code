@@ -356,7 +356,6 @@ public class BitcoinWalletService {
     public synchronized TxInfo importTransaction(String id, String hexTx, int depth)
             throws IOException, UnreadableWalletException {
         Wallet wallet = loadOrCreate(id);
-        Context.getOrCreate();
         Transaction tx = deserializeTransaction(hexTx);
         setTransactionConfidence(tx, depth);
         wallet.addWalletTransaction(new WalletTransaction(
